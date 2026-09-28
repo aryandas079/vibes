@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
@@ -53,6 +54,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -84,6 +87,7 @@ fun LyricsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
     val colorScheme = MaterialTheme.colorScheme
     val languages = listOf("Original", "English", "Spanish", "Japanese", "Korean", "French", "German", "Hindi", "Chinese", "Italian")
     var isDropdownExpanded by remember { mutableStateOf(false) }
@@ -249,7 +253,10 @@ fun LyricsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .liquidGlassEffect(shape = RoundedCornerShape(14.dp), elevation = 3.dp)
-                            .clickable { isDropdownExpanded = true }
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                isDropdownExpanded = true
+                            }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -289,11 +296,53 @@ fun LyricsScreen(
                                     )
                                 },
                                 onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onSelectLanguage(lang)
                                     isDropdownExpanded = false
                                 }
                             )
                         }
+                    }
+                }
+
+                // Gemini AI Translation Toggle Button
+                val isGeminiActive = selectedLanguage != "Original"
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isGeminiActive) Color(0xFF1DB954).copy(alpha = 0.2f) else StormBlackElevated)
+                        .border(
+                            1.dp,
+                            if (isGeminiActive) Color(0xFF1DB954) else StormSlateBorder,
+                            RoundedCornerShape(14.dp)
+                        )
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            if (isGeminiActive) {
+                                onSelectLanguage("Original")
+                            } else {
+                                onSelectLanguage("English") // Toggle to live Gemini translation
+                            }
+                        }
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Translate,
+                            contentDescription = "Toggle Gemini AI Translation",
+                            tint = if (isGeminiActive) Color(0xFF1DB954) else WhiteSmokeMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "GEMINI AI",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            color = if (isGeminiActive) Color(0xFF1DB954) else WhiteSmokeMuted,
+                            letterSpacing = 0.6.sp
+                        )
                     }
                 }
 

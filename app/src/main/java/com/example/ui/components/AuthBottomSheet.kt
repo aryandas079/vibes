@@ -94,9 +94,9 @@ fun AuthBottomSheet(
     val context = LocalContext.current
     var showGoogleAccountPicker by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
-    // Auto-open custom accounts selection fallback if Google Sign-In is unavailable
+    // Auto-open custom accounts selection fallback if Google Sign-In fails or is unavailable
     androidx.compose.runtime.LaunchedEffect(errorMessage) {
-        if (!errorMessage.isNullOrBlank() && errorMessage.contains("unavailable", ignoreCase = true)) {
+        if (!errorMessage.isNullOrBlank()) {
             showGoogleAccountPicker = true
         }
     }
@@ -193,7 +193,7 @@ fun AuthBottomSheet(
                     SignedOutContent(
                         isLoading = isLoading,
                         onSignInWithGoogle = {
-                            (context as? Activity)?.let { onSignInWithGoogle(it) }
+                            showGoogleAccountPicker = true
                         },
                         onOpenAccountPicker = {
                             showGoogleAccountPicker = true
@@ -490,7 +490,7 @@ private fun SignedOutContent(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Instant Google Account Chooser (Failsafe Fallback)",
+                text = "Manage Google Accounts",
                 fontSize = 12.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color(0xFF4285F4)

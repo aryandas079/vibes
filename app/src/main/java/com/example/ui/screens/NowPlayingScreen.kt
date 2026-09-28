@@ -83,12 +83,26 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import kotlin.math.sin
+import kotlin.math.cos
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.ui.components.MusicaImage
 import com.example.model.LyricsData
 import com.example.model.Song
 import com.example.model.SyncedLyricLine
@@ -375,13 +389,14 @@ private fun NowPlayingViewContent(
                     .liquidGlassEffect(shape = RoundedCornerShape(22.dp), elevation = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
+                MusicaImage(
                     model = song.artworkUrl,
                     contentDescription = song.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(22.dp))
+                        .clip(RoundedCornerShape(22.dp)),
+                    titlePlaceholder = song.title
                 )
 
                 if (isPlaying) {
@@ -480,6 +495,16 @@ private fun NowPlayingViewContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Subtle Wave Visualizer animation reacting to playing state
+                    WaveVisualizer(
+                        isPlaying = isPlaying,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(42.dp)
+                            .padding(bottom = 4.dp),
+                        waveColor = SpotifyGreen
+                    )
+
                     Slider(
                         value = displayRatio,
                         onValueChange = { frac ->
@@ -912,11 +937,12 @@ private fun LyricsViewContent(
                     .clip(RoundedCornerShape(8.dp))
                     .liquidGlassEffect(shape = RoundedCornerShape(8.dp), elevation = 2.dp)
             ) {
-                AsyncImage(
+                MusicaImage(
                     model = song.artworkUrl,
                     contentDescription = song.album,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    titlePlaceholder = song.title
                 )
             }
 
@@ -1283,4 +1309,107 @@ private fun formatTime(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return String.format("%d:%02d", minutes, seconds)
+}
+
+@Composable
+fun WaveVisualizer(
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier,
+    waveColor: Color = Color(0xFF1DB954)
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "wave")
+    val phaseShift by if (isPlaying) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = (2 * Math.PI).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(1800, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "phase"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
+
+    // Dynamic height modulation based on simulated music frequency/volume
+    val amplitude1 by if (isPlaying) {
+        infiniteTransition.animateFloat(
+            initialValue = 8f,
+            targetValue = 24f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "amplitude1"
+        )
+    } else {
+        remember { mutableFloatStateOf(3f) }
+    }
+
+    val amplitude2 by if (isPlaying) {
+        infiniteTransition.animateFloat(
+            initialValue = 14f,
+            targetValue = 6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(900, easing = LinearOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "amplitude2"
+        )
+    } else {
+        remember { mutableFloatStateOf(1.5f) }
+    }
+
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag("wave_visualizer")
+    ) {
+        val width = size.width
+        val height = size.height
+        val centerY = height / 2
+
+        // Draw multiple overlapping sinusoidal waves with different colors, phase shift and transparency
+        val path1 = Path()
+        val path2 = Path()
+        val path3 = Path()
+
+        path1.moveTo(0f, centerY)
+        path2.moveTo(0f, centerY)
+        path3.moveTo(0f, centerY)
+
+        for (x in 0..width.toInt() step 4) {
+            val radians = (x.toFloat() / width) * (3 * Math.PI).toFloat()
+            
+            // Primary wave
+            val y1 = centerY + sin(radians + phaseShift) * amplitude1
+            path1.lineTo(x.toFloat(), y1)
+
+            // Secondary wave (higher frequency, phase shift)
+            val y2 = centerY + sin(radians * 1.6f - phaseShift * 1.3f) * amplitude2
+            path2.lineTo(x.toFloat(), y2)
+
+            // Tertiary wave (lower frequency, opposite phase)
+            val y3 = centerY + cos(radians * 0.9f + phaseShift * 0.8f) * ((amplitude1 + amplitude2) / 2)
+            path3.lineTo(x.toFloat(), y3)
+        }
+
+        // Draw paths with beautiful glowing brush effects
+        drawPath(
+            path = path1,
+            color = waveColor.copy(alpha = 0.85f),
+            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round)
+        )
+        drawPath(
+            path = path2,
+            color = Color(0xFF8B5CF6).copy(alpha = 0.55f), // Purple accent
+            style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
+        )
+        drawPath(
+            path = path3,
+            color = Color(0xFFEC4899).copy(alpha = 0.4f), // Pink accent
+            style = Stroke(width = 1.2.dp.toPx(), cap = StrokeCap.Round)
+        )
+    }
 }

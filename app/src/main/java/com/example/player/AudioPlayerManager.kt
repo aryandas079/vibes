@@ -1,6 +1,8 @@
 package com.example.player
 
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Handler
@@ -137,6 +139,7 @@ class AudioPlayerManager(private val context: Context) {
                 mediaPlayer?.start()
                 _isPlaying.value = true
                 startProgressTicker()
+                startBackgroundService()
             }
             return
         }
@@ -145,7 +148,10 @@ class AudioPlayerManager(private val context: Context) {
         _currentPositionMs.value = 0L
         _isBuffering.value = true
 
-        releaseMediaPlayer()
+        val oldPlayer = mediaPlayer
+        mediaPlayer = null
+        stopProgressTicker()
+        fadeAndReleaseOldPlayer(oldPlayer)
 
         val previewUrl = song.previewUrl
         if (previewUrl.isNullOrEmpty()) {
@@ -186,12 +192,15 @@ class AudioPlayerManager(private val context: Context) {
                     }
                     try {
                         mp.start()
+                        fadeInNewPlayer(mp)
                         _isPlaying.value = true
                         startProgressTicker()
+                        startBackgroundService()
                     } catch (e: Exception) {
                         e.printStackTrace()
                         _isPlaying.value = true
                         startProgressTicker()
+                        startBackgroundService()
                     }
                 }
                 setOnCompletionListener {
@@ -288,10 +297,12 @@ class AudioPlayerManager(private val context: Context) {
                 player.pause()
                 _isPlaying.value = false
                 stopProgressTicker()
+                stopBackgroundService()
             } else {
                 player.start()
                 _isPlaying.value = true
                 startProgressTicker()
+                startBackgroundService()
             }
         } else {
             _currentSong.value?.let { playSong(it, currentPlaylist) }
@@ -480,6 +491,7 @@ class AudioPlayerManager(private val context: Context) {
 
     private fun releaseMediaPlayer() {
         stopProgressTicker()
+        stopBackgroundService()
         try {
             androidEqualizer?.release()
         } catch (e: Exception) {
@@ -497,6 +509,86 @@ class AudioPlayerManager(private val context: Context) {
             }
         }
         mediaPlayer = null
+    }
+
+    private fun startBackgroundService() {
+        try {
+            val intent = Intent(context, MediaPlaybackService::class.java).apply {
+                action = MediaPlaybackService.ACTION_START
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun stopBackgroundService() {
+        try {
+            val intent = Intent(context, MediaPlaybackService::class.java).apply {
+                action = MediaPlaybackService.ACTION_STOP
+            }
+            context.stopService(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun fadeAndReleaseOldPlayer(player: MediaPlayer?) {
+        if (player == null) return
+        scope.launch(Dispatchers.Main) {
+            try {
+                if (player.isPlaying) {
+                    val fadeDurationMs = 1500L
+                    val steps = 15
+                    val stepDelay = fadeDurationMs / steps
+                    for (i in steps downTo 0) {
+                        val vol = i.toFloat() / steps
+                        try {
+                            player.setVolume(vol, vol)
+                        } catch (e: Exception) {
+                            break
+                        }
+                        delay(stepDelay)
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore
+            } finally {
+                try {
+                    if (player.isPlaying) player.stop()
+                    player.reset()
+                    player.release()
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
+        }
+    }
+
+    private fun fadeInNewPlayer(player: MediaPlayer) {
+        scope.launch(Dispatchers.Main) {
+            try {
+                val fadeDurationMs = 1500L
+                val steps = 15
+                val stepDelay = fadeDurationMs / steps
+                player.setVolume(0f, 0f)
+                for (i in 0..steps) {
+                    val vol = i.toFloat() / steps
+                    try {
+                        player.setVolume(vol, vol)
+                    } catch (e: Exception) {
+                        break
+                    }
+                    delay(stepDelay)
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
     }
 
     fun release() {

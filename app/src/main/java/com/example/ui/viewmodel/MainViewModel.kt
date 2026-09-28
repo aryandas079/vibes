@@ -150,6 +150,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _recommendedSongs = MutableStateFlow<List<Song>>(emptyList())
     val recommendedSongs: StateFlow<List<Song>> = _recommendedSongs.asStateFlow()
 
+    // Daily Mix (10 tracks based on Recent Plays + Trends, updated every 24h)
+    private val _dailyMixSongs = MutableStateFlow<List<Song>>(emptyList())
+    val dailyMixSongs: StateFlow<List<Song>> = _dailyMixSongs.asStateFlow()
+
+    private val _dailyMixLastUpdated = MutableStateFlow<Long>(0L)
+    val dailyMixLastUpdated: StateFlow<Long> = _dailyMixLastUpdated.asStateFlow()
+
     // Gemini AI Song Discovery Recommendations based on listening history
     private val _discoveryRecommendations = MutableStateFlow<List<DiscoveryRecommendation>>(emptyList())
     val discoveryRecommendations: StateFlow<List<DiscoveryRecommendation>> = _discoveryRecommendations.asStateFlow()
@@ -311,17 +318,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val recs = repository.getRecommendations(songs)
                 _recommendedSongs.value = recs
                 refreshDynamicTopArtists()
-                // Refresh AI Discovery based on updated listening history
-                if (_discoveryRecommendations.value.isEmpty()) {
-                    refreshGeminiDiscovery()
-                }
+                // Refresh AI Discovery in real-time based on updated listening history
+                refreshGeminiDiscovery()
+                updateOrLoadDailyMix()
             }
         }
 
-        // Dynamically refresh homepage artists when favorites or followed change
+        // Dynamically refresh homepage artists, recommended songs, and Gemini discovery when favorites change
         viewModelScope.launch {
-            favoriteSongs.collect {
+            favoriteSongs.collect { favs ->
                 refreshDynamicTopArtists()
+                val songs = historyItems.value.map { it.song }
+                val recs = repository.getRecommendations(songs)
+                _recommendedSongs.value = recs
+                refreshGeminiDiscovery()
             }
         }
 
@@ -479,9 +489,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val recs = repository.getRecommendations(historyItems.value.map { it.song })
             _recommendedSongs.value = recs
 
+            updateOrLoadDailyMix()
+
             refreshGeminiDiscovery()
 
             _isHomescreenLoading.value = false
+        }
+    }
+
+    fun updateOrLoadDailyMix(forceRefresh: Boolean = false) {
+        viewModelScope.launch {
+            val prefs = getApplication<Application>().getSharedPreferences("musica_daily_mix_prefs", android.content.Context.MODE_PRIVATE)
+            val lastUpdate = prefs.getLong("daily_mix_last_updated", 0L)
+            val currentTime = System.currentTimeMillis()
+            val ONE_DAY_MS = 24 * 60 * 60 * 1000L // 24 hours
+
+            val storedIdsString = prefs.getString("daily_mix_song_ids", null)
+            val storedIds = storedIdsString?.split(",")?.mapNotNull { it.trim().toLongOrNull() } ?: emptyList()
+
+            val isExpired = (currentTime - lastUpdate) > ONE_DAY_MS
+
+            if (!forceRefresh && !isExpired && storedIds.size == 10 && _dailyMixSongs.value.size == 10) {
+                _dailyMixLastUpdated.value = lastUpdate
+                return@launch
+            }
+
+            if (!forceRefresh && !isExpired && storedIds.size == 10) {
+                val cachedSongs = repository.getSongsByIds(storedIds)
+                if (cachedSongs.size == 10) {
+                    _dailyMixSongs.value = cachedSongs
+                    _dailyMixLastUpdated.value = lastUpdate
+                    return@launch
+                }
+            }
+
+            // Generate fresh Daily Mix (10 tracks combining Recent Plays & Current Trends)
+            val historySongs = historyItems.value.map { it.song }
+            val trends = _trendingSongs.value.ifEmpty { repository.getTrendingHits() }
+            val newMix = repository.generateDailyMix(historySongs, trends)
+
+            if (newMix.isNotEmpty()) {
+                _dailyMixSongs.value = newMix
+                val newTimestamp = if (lastUpdate == 0L || isExpired || forceRefresh) currentTime else lastUpdate
+                _dailyMixLastUpdated.value = newTimestamp
+
+                val idsToSave = newMix.joinToString(",") { it.id.toString() }
+                prefs.edit()
+                    .putLong("daily_mix_last_updated", newTimestamp)
+                    .putString("daily_mix_song_ids", idsToSave)
+                    .apply()
+            }
         }
     }
 
@@ -845,9 +902,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
+            _isLyricsLoading.value = true
+            val originalTexts = current.syncedLines.map { it.text }
+            val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+            
+            val geminiTranslations = if (apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY" && !apiKey.contains("placeholder") && !apiKey.contains("dummy")) {
+                LyricsEngine.translateLyricsWithGemini(originalTexts, targetLang, apiKey)
+            } else null
+
             val translationMap = mutableMapOf<String, String>()
             val updatedLines = current.syncedLines.map { line ->
-                val trans = LyricsEngine.translateLyricLine(line.text, targetLang)
+                val trans = geminiTranslations?.get(line.text) ?: LyricsEngine.translateLyricLine(line.text, targetLang)
                 translationMap[line.text] = trans
                 line.copy(
                     translation = trans,
@@ -856,6 +921,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             LyricsEngine.saveTranslation(cacheKey, translationMap)
             _lyricsData.value = current.copy(syncedLines = updatedLines)
+            _isLyricsLoading.value = false
         }
     }
 

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -21,24 +22,42 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import coil.compose.AsyncImage
 import com.example.model.SyncStatus
 import com.example.model.UserSession
+import com.example.model.Song
+import com.example.ui.components.MusicaImage
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.testTag
 import com.example.ui.theme.StormBlackCard
 import com.example.ui.theme.StormBlackElevated
 import com.example.ui.theme.StormSlateBorder
@@ -56,8 +75,15 @@ fun HomeAuthHeader(
     onNavigateToSearch: () -> Unit,
     modifier: Modifier = Modifier,
     isOfflineMode: Boolean = false,
-    onToggleOfflineMode: () -> Unit = {}
+    onToggleOfflineMode: () -> Unit = {},
+    searchQuery: String = "",
+    onSearchQueryChange: (String) -> Unit = {},
+    searchResults: List<Song> = emptyList(),
+    isSearching: Boolean = false,
+    onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
+    onOpenSongDetails: (Song) -> Unit = {}
 ) {
+    val haptic = LocalHapticFeedback.current
     val colorScheme = MaterialTheme.colorScheme
 
     // Dynamic greeting based on current time
@@ -114,7 +140,10 @@ fun HomeAuthHeader(
                 // Cloud Sync / Status Pill
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { onOpenAuth() }
+                    modifier = Modifier.clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onOpenAuth()
+                    }
                 ) {
                     if (userSession != null) {
                         Box(
@@ -154,7 +183,10 @@ fun HomeAuthHeader(
             ) {
                 // Offline Mode toggle button
                 IconButton(
-                    onClick = onToggleOfflineMode,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onToggleOfflineMode()
+                    },
                     modifier = Modifier
                         .size(42.dp)
                         .liquidGlassEffect(shape = CircleShape, elevation = 2.dp)
@@ -167,21 +199,6 @@ fun HomeAuthHeader(
                     )
                 }
 
-                // Search button
-                IconButton(
-                    onClick = onNavigateToSearch,
-                    modifier = Modifier
-                        .size(42.dp)
-                        .liquidGlassEffect(shape = CircleShape, elevation = 2.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = colorScheme.onSurface,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
                 // Profile Avatar / Sign In Pill
                 if (userSession != null) {
                     Box(
@@ -190,7 +207,10 @@ fun HomeAuthHeader(
                             .clip(CircleShape)
                             .border(1.5.dp, WhiteSmokeSoft, CircleShape)
                             .liquidGlassEffect(shape = CircleShape, elevation = 4.dp)
-                            .clickable { onOpenAuth() },
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onOpenAuth()
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         if (!userSession.photoUrl.isNullOrBlank()) {
@@ -229,7 +249,10 @@ fun HomeAuthHeader(
                             .clip(RoundedCornerShape(19.dp))
                             .background(StormBlackElevated)
                             .border(1.dp, StormSlateBorder, RoundedCornerShape(19.dp))
-                            .clickable { onOpenAuth() }
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onOpenAuth()
+                            }
                             .padding(horizontal = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
@@ -250,6 +273,172 @@ fun HomeAuthHeader(
                             maxLines = 1,
                             softWrap = false
                         )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Real-time Search Bar inside Top Navigation area
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(StormBlackElevated)
+                .border(1.dp, StormSlateBorder, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = WhiteSmokeMuted,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    textStyle = TextStyle(
+                        color = WhiteSmoke,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    cursorBrush = SolidColor(Color(0xFF1DB954)),
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    decorationBox = { innerTextField ->
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                text = "Search songs by title or artist...",
+                                color = WhiteSmokeMuted,
+                                fontSize = 14.sp
+                            )
+                        }
+                        innerTextField()
+                    }
+                )
+
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(
+                        onClick = { onSearchQueryChange("") },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear Search",
+                            tint = WhiteSmokeMuted,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Real-time Search Results Dropdown Overlay
+        AnimatedVisibility(
+            visible = searchQuery.isNotEmpty(),
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .liquidGlassEffect(shape = RoundedCornerShape(16.dp), elevation = 6.dp)
+                    .border(1.dp, StormSlateBorder, RoundedCornerShape(16.dp))
+                    .padding(8.dp)
+            ) {
+                if (isSearching) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color(0xFF1DB954),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                } else if (searchResults.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No songs found for \"$searchQuery\"",
+                            color = WhiteSmokeMuted,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Real-time Search Results",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1DB954),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                    
+                    searchResults.take(5).forEach { song ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    onPlaySong(song, searchResults)
+                                    onOpenSongDetails(song)
+                                }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            MusicaImage(
+                                model = song.artworkUrl,
+                                contentDescription = song.title,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(6.dp)),
+                                titlePlaceholder = song.title
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = song.title,
+                                    color = WhiteSmoke,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = song.artist,
+                                    color = WhiteSmokeMuted,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Play",
+                                tint = Color(0xFF1DB954),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }

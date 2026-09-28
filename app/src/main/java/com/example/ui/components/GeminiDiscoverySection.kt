@@ -81,7 +81,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.example.ui.components.MusicaImage
 import com.example.model.DiscoveryRecommendation
 import com.example.model.Song
 import com.example.ui.theme.SpotifyGreen
@@ -98,6 +98,13 @@ enum class DiscoverySectionFilter(val label: String) {
     ALL("All Discoveries"),
     SEARCH("From Searches"),
     LISTENED("From Listened")
+}
+
+enum class DiscoveryMoodFilter(val label: String, val color: Color) {
+    ALL("All Vibes", Color(0xFFC084FC)),
+    RELAXING("Relaxing", Color(0xFF8B5CF6)),
+    WORKOUT("Workout", Color(0xFFEF4444)),
+    FOCUS("Focus", Color(0xFF3B82F6))
 }
 
 @Composable
@@ -117,12 +124,40 @@ fun GeminiDiscoverySection(
 
     // Section filtering: All, From Searches, From Listened
     var selectedFilter by remember { mutableStateOf(DiscoverySectionFilter.ALL) }
+    // Mood-Based filtering tag state
+    var selectedMood by remember { mutableStateOf(DiscoveryMoodFilter.ALL) }
 
-    val filteredRecommendations = remember(recommendations, selectedFilter) {
-        when (selectedFilter) {
+    val filteredRecommendations = remember(recommendations, selectedFilter, selectedMood) {
+        val baseList = when (selectedFilter) {
             DiscoverySectionFilter.ALL -> recommendations
             DiscoverySectionFilter.SEARCH -> recommendations.filter { it.isFromSearch }
             DiscoverySectionFilter.LISTENED -> recommendations.filter { !it.isFromSearch }
+        }
+        baseList.filter { rec ->
+            when (selectedMood) {
+                DiscoveryMoodFilter.ALL -> true
+                DiscoveryMoodFilter.RELAXING -> {
+                    val tag = rec.vibeTag.lowercase()
+                    val text = (rec.aiReason + " " + rec.song.title + " " + rec.song.genre).lowercase()
+                    tag.contains("relax") || tag.contains("chill") || tag.contains("calm") || tag.contains("soothing") || tag.contains("ambient") || tag.contains("peace") ||
+                    text.contains("relax") || text.contains("chill") || text.contains("calm") || text.contains("soothing") || text.contains("ambient") || text.contains("peaceful") ||
+                    rec.song.genre.lowercase().contains("classical") || rec.song.genre.lowercase().contains("ambient") || rec.song.genre.lowercase().contains("acoustic")
+                }
+                DiscoveryMoodFilter.WORKOUT -> {
+                    val tag = rec.vibeTag.lowercase()
+                    val text = (rec.aiReason + " " + rec.song.title + " " + rec.song.genre).lowercase()
+                    tag.contains("workout") || tag.contains("energetic") || tag.contains("hype") || tag.contains("pump") || tag.contains("fast") || tag.contains("heavy") || tag.contains("run") || tag.contains("gym") ||
+                    text.contains("workout") || text.contains("energetic") || text.contains("hype") || text.contains("pump") || text.contains("gym") ||
+                    rec.song.genre.lowercase().contains("electronic") || rec.song.genre.lowercase().contains("rock") || rec.song.genre.lowercase().contains("dance") || rec.song.genre.lowercase().contains("hip hop")
+                }
+                DiscoveryMoodFilter.FOCUS -> {
+                    val tag = rec.vibeTag.lowercase()
+                    val text = (rec.aiReason + " " + rec.song.title + " " + rec.song.genre).lowercase()
+                    tag.contains("focus") || tag.contains("concentration") || tag.contains("study") || tag.contains("instrumental") || tag.contains("deep") || tag.contains("soft") || tag.contains("quiet") ||
+                    text.contains("focus") || text.contains("study") || text.contains("instrumental") || text.contains("concentrat") ||
+                    rec.song.genre.lowercase().contains("lofi") || rec.song.genre.lowercase().contains("ambient") || rec.song.genre.lowercase().contains("jazz") || rec.song.genre.lowercase().contains("classical")
+                }
+            }
         }
     }
 
@@ -287,6 +322,53 @@ fun GeminiDiscoverySection(
                         activeCardIndex = 0
                     }
                 )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Mood-Based Tag Filter Chips Row (Scrollable)
+            LazyRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("discovery_mood_filters"),
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items(DiscoveryMoodFilter.values()) { mood ->
+                    val isSelected = selectedMood == mood
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(
+                                if (isSelected) mood.color.copy(alpha = 0.22f)
+                                else Color.White.copy(alpha = 0.04f)
+                            )
+                            .border(
+                                1.dp,
+                                if (isSelected) mood.color else Color.White.copy(alpha = 0.08f),
+                                RoundedCornerShape(20.dp)
+                            )
+                            .clickable {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                selectedMood = mood
+                                activeCardIndex = 0
+                            }
+                            .padding(horizontal = 14.dp, vertical = 7.dp)
+                            .testTag("mood_filter_${mood.name.lowercase()}")
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = mood.label,
+                                fontSize = 12.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSelected) mood.color else colorScheme.onSurface.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -634,11 +716,12 @@ private fun SwappableCardItem(
                     .height(150.dp)
                     .clip(RoundedCornerShape(18.dp))
             ) {
-                AsyncImage(
+                MusicaImage(
                     model = song.artworkUrl,
                     contentDescription = song.title,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    titlePlaceholder = song.title
                 )
 
                 // Match Percentage
@@ -912,11 +995,12 @@ private fun MiniDiscoveryCard(
                     .height(80.dp)
                     .clip(RoundedCornerShape(12.dp))
             ) {
-                AsyncImage(
+                MusicaImage(
                     model = recommendation.song.artworkUrl,
                     contentDescription = recommendation.song.title,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    titlePlaceholder = recommendation.song.title
                 )
 
                 if (isSelected) {

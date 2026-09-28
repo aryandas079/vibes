@@ -84,7 +84,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.example.ui.components.MusicaImage
 import com.example.model.Album
 import com.example.model.Artist
 import com.example.model.Song
@@ -653,11 +653,12 @@ fun ArtistRichCard(
                     .border(2.dp, SpotifyGreen.copy(alpha = 0.75f), CircleShape)
                     .clickable { onArtistClick() }
             ) {
-                AsyncImage(
+                MusicaImage(
                     model = artist.imageUrl,
                     contentDescription = artist.name,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    titlePlaceholder = artist.name
                 )
             }
 
@@ -921,11 +922,12 @@ fun ArtistTopTrackDenseRow(
                 .clip(RoundedCornerShape(6.dp))
                 .border(0.5.dp, WhiteSmoke.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
         ) {
-            AsyncImage(
+            MusicaImage(
                 model = song.artworkUrl,
                 contentDescription = song.title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                titlePlaceholder = song.title
             )
         }
 
@@ -1037,11 +1039,12 @@ fun AlbumDisplayCard(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
+                MusicaImage(
                     model = album.artworkUrl,
                     contentDescription = album.title,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    titlePlaceholder = album.title
                 )
 
                 // Atmospheric dark gradient overlay
@@ -1462,11 +1465,12 @@ private fun TopTrackItem(
                 .size(40.dp)
                 .clip(RoundedCornerShape(8.dp))
         ) {
-            AsyncImage(
+            MusicaImage(
                 model = song.artworkUrl,
                 contentDescription = song.title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                titlePlaceholder = song.title
             )
         }
 
@@ -1552,11 +1556,12 @@ private fun SearchSongRow(
                 .size(48.dp)
                 .clip(RoundedCornerShape(10.dp))
         ) {
-            AsyncImage(
+            MusicaImage(
                 model = song.artworkUrl,
                 contentDescription = song.title,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                titlePlaceholder = song.title
             )
         }
 

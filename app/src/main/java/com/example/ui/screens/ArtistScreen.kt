@@ -55,7 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.example.ui.components.MusicaImage
 import com.example.model.Artist
 import com.example.model.Song
 import com.example.ui.theme.*
@@ -127,11 +127,12 @@ fun ArtistScreen(
                         .height(350.dp)
                 ) {
                     // Blurred / Atmospheric Image Backdrop
-                    AsyncImage(
+                    MusicaImage(
                         model = resolvedImageUrl,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize(),
+                        titlePlaceholder = artistName
                     )
 
                     // Darkening and Vignette Gradient
@@ -202,11 +203,12 @@ fun ArtistScreen(
                                     .border(3.dp, WhiteSmoke.copy(alpha = 0.6f), CircleShape)
                                     .liquidGlassEffect(shape = CircleShape, elevation = 8.dp)
                             ) {
-                                AsyncImage(
+                                MusicaImage(
                                     model = resolvedImageUrl,
                                     contentDescription = artistName,
                                     contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    titlePlaceholder = artistName
                                 )
                             }
 
@@ -439,11 +441,12 @@ fun ArtistScreen(
                                 .size(48.dp)
                                 .clip(RoundedCornerShape(8.dp))
                         ) {
-                            AsyncImage(
+                            MusicaImage(
                                 model = song.artworkUrl,
                                 contentDescription = song.title,
                                 contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
+                                titlePlaceholder = song.title
                             )
                         }
 
@@ -527,11 +530,12 @@ fun ArtistScreen(
                                         .size(140.dp)
                                         .liquidGlassEffect(shape = RoundedCornerShape(16.dp), elevation = 4.dp)
                                 ) {
-                                    AsyncImage(
+                                    MusicaImage(
                                         model = song.artworkUrl,
                                         contentDescription = song.album,
                                         contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize(),
+                                        titlePlaceholder = song.album
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))

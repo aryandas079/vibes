@@ -63,7 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.example.ui.components.MusicaImage
 import com.example.model.Artist
 import com.example.model.GenreChartData
 import com.example.model.Song
@@ -285,11 +285,12 @@ fun GenreDetailScreen(
                                         .height(210.dp)
                                         .clip(RoundedCornerShape(18.dp))
                                 ) {
-                                    AsyncImage(
+                                    MusicaImage(
                                         model = heroSong.artworkUrl,
                                         contentDescription = heroSong.title,
                                         contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize(),
+                                        titlePlaceholder = heroSong.title
                                     )
 
                                     // Gradient overlay
@@ -536,11 +537,12 @@ fun GenreDetailScreen(
                                                 .clip(CircleShape)
                                                 .border(2.dp, WhiteSmoke.copy(alpha = 0.5f), CircleShape)
                                         ) {
-                                            AsyncImage(
+                                            MusicaImage(
                                                 model = artist.imageUrl,
                                                 contentDescription = artist.name,
                                                 contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
+                                                modifier = Modifier.fillMaxSize(),
+                                                titlePlaceholder = artist.name
                                             )
                                         }
 
@@ -685,11 +687,12 @@ fun GenreDetailScreen(
                                 .size(48.dp)
                                 .clip(RoundedCornerShape(8.dp))
                         ) {
-                            AsyncImage(
+                            MusicaImage(
                                 model = song.artworkUrl,
                                 contentDescription = song.title,
                                 contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize(),
+                                titlePlaceholder = song.title
                             )
                         }
 

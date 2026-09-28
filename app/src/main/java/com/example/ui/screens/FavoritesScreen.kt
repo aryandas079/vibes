@@ -76,7 +76,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.example.ui.components.MusicaImage
 import com.example.model.Album
 import com.example.model.Artist
 import com.example.model.HistoryItem
@@ -553,11 +553,12 @@ fun FavoritesScreen(
                                             .size(48.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                     ) {
-                                        AsyncImage(
+                                        MusicaImage(
                                             model = song.artworkUrl,
                                             contentDescription = song.title,
                                             contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
+                                            modifier = Modifier.fillMaxSize(),
+                                            titlePlaceholder = song.title
                                         )
                                     }
 
@@ -660,11 +661,12 @@ fun FavoritesScreen(
                                                 .size(52.dp)
                                                 .clip(CircleShape)
                                         ) {
-                                            AsyncImage(
+                                            MusicaImage(
                                                 model = artist.imageUrl,
                                                 contentDescription = artist.name,
                                                 contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
+                                                modifier = Modifier.fillMaxSize(),
+                                                titlePlaceholder = artist.name
                                             )
                                         }
 
@@ -842,11 +844,12 @@ fun FavoritesScreen(
                                                 .size(48.dp)
                                                 .clip(RoundedCornerShape(8.dp))
                                         ) {
-                                            AsyncImage(
+                                            MusicaImage(
                                                 model = song.artworkUrl,
                                                 contentDescription = song.title,
                                                 contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
+                                                modifier = Modifier.fillMaxSize(),
+                                                titlePlaceholder = song.title
                                             )
                                         }
 
@@ -948,11 +951,12 @@ fun FavoritesScreen(
                                                 .size(54.dp)
                                                 .clip(RoundedCornerShape(10.dp))
                                         ) {
-                                            AsyncImage(
+                                            MusicaImage(
                                                 model = firstSong.artworkUrl,
                                                 contentDescription = albumName,
                                                 contentScale = ContentScale.Crop,
-                                                modifier = Modifier.fillMaxSize()
+                                                modifier = Modifier.fillMaxSize(),
+                                                titlePlaceholder = albumName
                                             )
                                         }
 
@@ -1085,11 +1089,12 @@ fun FavoritesScreen(
                                             .size(46.dp)
                                             .clip(RoundedCornerShape(8.dp))
                                     ) {
-                                        AsyncImage(
+                                        MusicaImage(
                                             model = song.artworkUrl,
                                             contentDescription = song.title,
                                             contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
+                                            modifier = Modifier.fillMaxSize(),
+                                            titlePlaceholder = song.title
                                         )
                                     }
 
@@ -1182,11 +1187,12 @@ private fun LibraryFollowedArtistCard(
                     .border(2.dp, SpotifyGreen, CircleShape)
                     .clickable { onOpenDiscography() }
             ) {
-                AsyncImage(
+                MusicaImage(
                     model = artist.imageUrl,
                     contentDescription = artist.name,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    titlePlaceholder = artist.name
                 )
             }
 

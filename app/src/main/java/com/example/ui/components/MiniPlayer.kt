@@ -99,13 +99,14 @@ fun MiniPlayer(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Album artwork thumbnail
-                    AsyncImage(
+                    MusicaImage(
                         model = song.artworkUrl,
                         contentDescription = song.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(46.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(10.dp)),
+                        titlePlaceholder = song.title
                     )
 
                     Spacer(modifier = Modifier.width(12.dp))

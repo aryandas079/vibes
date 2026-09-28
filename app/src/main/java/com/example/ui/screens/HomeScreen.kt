@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,6 +41,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
@@ -58,12 +61,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.ui.components.MusicaImage
 import com.example.model.Album
 import com.example.model.Artist
 import com.example.model.DiscoveryRecommendation
@@ -119,9 +124,17 @@ fun HomeScreen(
     onToggleOfflineMode: () -> Unit = {},
     onOpenMoodPlaylistGenerator: () -> Unit = {},
     featuredAlbums: List<Album> = emptyList(),
-    onOpenAlbum: (Album) -> Unit = {}
+    onOpenAlbum: (Album) -> Unit = {},
+    searchQuery: String = "",
+    onSearchQueryChange: (String) -> Unit = {},
+    searchResults: List<Song> = emptyList(),
+    isSearching: Boolean = false,
+    dailyMixSongs: List<Song> = emptyList(),
+    dailyMixLastUpdated: Long = 0L,
+    onRefreshDailyMix: () -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val view = LocalView.current
 
     val genres = listOf(
         GenreItem("Pop", GenrePopBg, "https://cdn-images.dzcdn.net/images/misc/f9e070848998df8870ba65cd0d22b2b3/500x500-000000-80-0-0.jpg"),
@@ -146,6 +159,15 @@ fun HomeScreen(
     // Dynamic recommendations based on history & searches
     val displayRecs = recommendedSongs.ifEmpty {
         if (categorySongs.isNotEmpty()) categorySongs else trendingSongs
+    }
+
+    val vibeMixSongs = remember(trendingSongs, recommendedSongs) {
+        val base = if (trendingSongs.isNotEmpty()) trendingSongs else recommendedSongs
+        base.shuffled().take(6)
+    }
+    val daySoundtrackSongs = remember(recommendedSongs, trendingSongs) {
+        val base = if (recommendedSongs.isNotEmpty()) recommendedSongs else trendingSongs
+        base.shuffled().take(6)
     }
 
     // Speed Dial: 4 to 6 items strictly prioritized from actual listening history, then favorites, then top trending
@@ -175,7 +197,13 @@ fun HomeScreen(
                     onOpenAuth = onOpenAuth,
                     onNavigateToSearch = onNavigateToSearch,
                     isOfflineMode = isOfflineMode,
-                    onToggleOfflineMode = onToggleOfflineMode
+                    onToggleOfflineMode = onToggleOfflineMode,
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = onSearchQueryChange,
+                    searchResults = searchResults,
+                    isSearching = isSearching,
+                    onPlaySong = onPlaySong,
+                    onOpenSongDetails = onOpenSongDetails
                 )
             }
 
@@ -392,11 +420,12 @@ fun HomeScreen(
                                             .height(115.dp)
                                             .clip(RoundedCornerShape(12.dp))
                                     ) {
-                                        AsyncImage(
+                                        MusicaImage(
                                             model = song.artworkUrl,
                                             contentDescription = song.title,
                                             contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
+                                            modifier = Modifier.fillMaxSize(),
+                                            titlePlaceholder = song.title
                                         )
 
                                         Box(
@@ -527,13 +556,14 @@ fun HomeScreen(
                                                 },
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            AsyncImage(
+                                            MusicaImage(
                                                 model = song.artworkUrl,
                                                 contentDescription = song.title,
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier
                                                     .size(58.dp)
-                                                    .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+                                                    .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)),
+                                                titlePlaceholder = song.title
                                             )
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Column(
@@ -659,11 +689,12 @@ fun HomeScreen(
                                             .size(110.dp)
                                             .clip(RoundedCornerShape(12.dp))
                                     ) {
-                                        AsyncImage(
+                                        MusicaImage(
                                             model = song.artworkUrl,
                                             contentDescription = song.title,
                                             contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
+                                            modifier = Modifier.fillMaxSize(),
+                                            titlePlaceholder = song.title
                                         )
 
                                         if (isCurrent && isPlaying) {
@@ -997,11 +1028,12 @@ fun HomeScreen(
                                             .border(2.dp, WhiteSmoke.copy(alpha = 0.4f), CircleShape)
                                             .liquidGlassEffect(shape = CircleShape, elevation = 4.dp)
                                     ) {
-                                        AsyncImage(
+                                        MusicaImage(
                                             model = artist.imageUrl,
                                             contentDescription = artist.name,
                                             contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
+                                            modifier = Modifier.fillMaxSize(),
+                                            titlePlaceholder = artist.name
                                         )
                                     }
 
@@ -1035,6 +1067,188 @@ fun HomeScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            // Section: Daily Mix (10 tracks generated from Recent Plays & Trends, updated once every 24h)
+            item {
+                if (dailyMixSongs.isNotEmpty()) {
+                    val remainingHours = remember(dailyMixLastUpdated) {
+                        if (dailyMixLastUpdated == 0L) 24
+                        else {
+                            val elapsedMs = System.currentTimeMillis() - dailyMixLastUpdated
+                            val remainingMs = (24 * 60 * 60 * 1000L) - elapsedMs
+                            val remainingHours = (remainingMs / (1000 * 60 * 60)).coerceIn(0, 24)
+                            if (remainingHours <= 0) 24 else remainingHours.toInt()
+                        }
+                    }
+
+                    Column(modifier = Modifier.padding(vertical = 10.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Daily Mix",
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(SpotifyGreen.copy(alpha = 0.2f))
+                                            .border(1.dp, SpotifyGreen.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "24H REFRESH",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = SpotifyGreen
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "10 tracks based on recent plays & trends • Refreshes in ${remainingHours}h",
+                                    fontSize = 11.sp,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    onRefreshDailyMix()
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Refresh Daily Mix",
+                                    tint = colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Daily Mix 10-Track Horizontal Carousel
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            itemsIndexed(dailyMixSongs) { index, song ->
+                                Column(
+                                    modifier = Modifier
+                                        .width(150.dp)
+                                        .clickable {
+                                            onPlaySong(song, dailyMixSongs)
+                                            onOpenSongDetails(song)
+                                        }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(150.dp)
+                                            .liquidGlassEffect(shape = RoundedCornerShape(16.dp), elevation = 6.dp)
+                                    ) {
+                                        MusicaImage(
+                                            model = song.artworkUrl,
+                                            contentDescription = song.title,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                            titlePlaceholder = song.title
+                                        )
+
+                                        // Track Index Badge (#1 to #10)
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopStart)
+                                                .padding(6.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(StormBlackBg.copy(alpha = 0.75f))
+                                                .border(0.5.dp, WhiteSmoke.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "#${index + 1}",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = WhiteSmoke
+                                            )
+                                        }
+
+                                        // Favorite button
+                                        val isFav = favoriteSongs.any { it.id == song.id }
+                                        IconButton(
+                                            onClick = { onToggleFavorite(song) },
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(6.dp)
+                                                .size(30.dp)
+                                                .clip(CircleShape)
+                                                .background(StormBlackBg.copy(alpha = 0.4f))
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                                contentDescription = "Favorite",
+                                                tint = if (isFav) WhiteSmoke else WhiteSmokeDim,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+
+                                        // Play Overlay Badge
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomEnd)
+                                                .padding(8.dp)
+                                                .size(32.dp)
+                                                .clip(CircleShape)
+                                                .background(SpotifyGreen)
+                                                .padding(6.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = "Play",
+                                                tint = Color.Black,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Text(
+                                        text = song.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = song.artist,
+                                        fontSize = 11.sp,
+                                        color = colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
             }
 
             // Section 4: "Recommendations" (Dynamic based on history & searches)
@@ -1092,11 +1306,12 @@ fun HomeScreen(
                                             .size(170.dp)
                                             .liquidGlassEffect(shape = RoundedCornerShape(18.dp), elevation = 6.dp)
                                     ) {
-                                        AsyncImage(
+                                        MusicaImage(
                                             model = song.artworkUrl,
                                             contentDescription = song.title,
                                             contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
+                                            modifier = Modifier.fillMaxSize(),
+                                            titlePlaceholder = song.title
                                         )
 
                                         // 30s preview badge
@@ -1161,6 +1376,244 @@ fun HomeScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(14.dp))
+            }
+
+            // Section 5: "Vibe Mix for You"
+            item {
+                val songsToDisplay = vibeMixSongs
+                if (songsToDisplay.isNotEmpty()) {
+                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Vibe Mix for You",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "A dynamic curation of your top sounds",
+                                    fontSize = 11.sp,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(songsToDisplay) { song ->
+                                Column(
+                                    modifier = Modifier
+                                        .width(140.dp)
+                                        .clickable {
+                                            onPlaySong(song, songsToDisplay)
+                                            onOpenSongDetails(song)
+                                        }
+                                ) {
+                                    // Album Art Square Card with Liquid Glass
+                                    Box(
+                                        modifier = Modifier
+                                            .size(140.dp)
+                                            .liquidGlassEffect(shape = RoundedCornerShape(14.dp), elevation = 4.dp)
+                                    ) {
+                                        MusicaImage(
+                                            model = song.artworkUrl,
+                                            contentDescription = song.title,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                            titlePlaceholder = song.title
+                                        )
+
+                                        // 30s preview badge
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomStart)
+                                                .padding(6.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(StormBlackBg.copy(alpha = 0.65f))
+                                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "30s preview",
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = WhiteSmoke
+                                            )
+                                        }
+
+                                        // Favorite button
+                                        val isFav = favoriteSongs.any { it.id == song.id }
+                                        IconButton(
+                                            onClick = { onToggleFavorite(song) },
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(4.dp)
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .background(StormBlackBg.copy(alpha = 0.4f))
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                                contentDescription = "Favorite",
+                                                tint = if (isFav) WhiteSmoke else WhiteSmokeDim,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Song Title
+                                    Text(
+                                        text = song.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    // Artist Name
+                                    Text(
+                                        text = song.artist,
+                                        fontSize = 11.sp,
+                                        color = colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+            }
+
+            // Section 6: "Soundtrack of Your Day"
+            item {
+                val songsToDisplay = daySoundtrackSongs
+                if (songsToDisplay.isNotEmpty()) {
+                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Soundtrack of Your Day",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Fresh hits selected just for you",
+                                    fontSize = 11.sp,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(songsToDisplay) { song ->
+                                Column(
+                                    modifier = Modifier
+                                        .width(140.dp)
+                                        .clickable {
+                                            onPlaySong(song, songsToDisplay)
+                                            onOpenSongDetails(song)
+                                        }
+                                ) {
+                                    // Album Art Square Card with Liquid Glass
+                                    Box(
+                                        modifier = Modifier
+                                            .size(140.dp)
+                                            .liquidGlassEffect(shape = RoundedCornerShape(14.dp), elevation = 4.dp)
+                                    ) {
+                                        MusicaImage(
+                                            model = song.artworkUrl,
+                                            contentDescription = song.title,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize(),
+                                            titlePlaceholder = song.title
+                                        )
+
+                                        // 30s preview badge
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomStart)
+                                                .padding(6.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(StormBlackBg.copy(alpha = 0.65f))
+                                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "30s preview",
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = WhiteSmoke
+                                            )
+                                        }
+
+                                        // Favorite button
+                                        val isFav = favoriteSongs.any { it.id == song.id }
+                                        IconButton(
+                                            onClick = { onToggleFavorite(song) },
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(4.dp)
+                                                .size(28.dp)
+                                                .clip(CircleShape)
+                                                .background(StormBlackBg.copy(alpha = 0.4f))
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                                contentDescription = "Favorite",
+                                                tint = if (isFav) WhiteSmoke else WhiteSmokeDim,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Song Title
+                                    Text(
+                                        text = song.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    // Artist Name
+                                    Text(
+                                        text = song.artist,
+                                        fontSize = 11.sp,
+                                        color = colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
             }
         }
     }
@@ -1253,13 +1706,14 @@ fun AlbumCardItem(
                 .liquidGlassEffect(shape = RoundedCornerShape(20.dp), elevation = 6.dp)
                 .border(1.dp, StormSlateBorder, RoundedCornerShape(20.dp))
         ) {
-            AsyncImage(
+            MusicaImage(
                 model = album.artworkUrl,
                 contentDescription = album.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(20.dp)),
+                titlePlaceholder = album.title
             )
 
             // Year Pill on Top-Left

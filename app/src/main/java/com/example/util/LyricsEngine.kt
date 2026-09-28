@@ -2,6 +2,8 @@ package com.example.util
 
 import com.example.model.SyncedLyricLine
 import java.util.regex.Pattern
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 object LyricsEngine {
 
@@ -762,5 +764,96 @@ object LyricsEngine {
 
             else -> null
         }
+    }
+
+    suspend fun translateLyricsWithGemini(
+        lines: List<String>,
+        targetLang: String,
+        apiKey: String
+    ): Map<String, String>? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        if (lines.isEmpty()) return@withContext emptyMap<String, String>()
+        
+        try {
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+            
+            val linesJson = org.json.JSONArray().apply {
+                lines.forEach { put(it) }
+            }
+            
+            val prompt = """
+                You are a professional music translator. Translate the following song lyrics lines into $targetLang.
+                Keep the translation poetic, natural, and rhythmically aligned with the original song flow.
+                Return ONLY a valid JSON object where the keys are the exact original lines and the values are their translations. Do not include any extra text.
+
+                Lines to translate:
+                ${linesJson.toString()}
+            """.trimIndent()
+
+            val requestJson = org.json.JSONObject().apply {
+                val contentsArray = org.json.JSONArray().apply {
+                    val contentObj = org.json.JSONObject().apply {
+                        val partsArray = org.json.JSONArray().apply {
+                            val partObj = org.json.JSONObject().apply {
+                                put("text", prompt)
+                            }
+                            put(partObj)
+                        }
+                        put("parts", partsArray)
+                    }
+                    put(contentObj)
+                }
+                put("contents", contentsArray)
+
+                val generationConfig = org.json.JSONObject().apply {
+                    put("responseMimeType", "application/json")
+                    put("temperature", 0.3)
+                }
+                put("generationConfig", generationConfig)
+            }
+
+            val client = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val body = requestJson.toString().toRequestBody(mediaType)
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .post(body)
+                .build()
+
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                return@withContext null
+            }
+
+            val responseObj = org.json.JSONObject(responseBody)
+            val candidates = responseObj.optJSONArray("candidates")
+            val firstCandidate = candidates?.optJSONObject(0)
+            val content = firstCandidate?.optJSONObject("content")
+            val parts = content?.optJSONArray("parts")
+            val text = parts?.optJSONObject(0)?.optString("text") ?: ""
+
+            if (text.isNotBlank()) {
+                val cleanJson = text.trim()
+                    .removePrefix("```json")
+                    .removePrefix("```")
+                    .removeSuffix("```")
+                    .trim()
+                
+                val resultObj = org.json.JSONObject(cleanJson)
+                val map = mutableMapOf<String, String>()
+                resultObj.keys().forEach { key ->
+                    map[key] = resultObj.optString(key, "")
+                }
+                return@withContext map
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return@withContext null
     }
 }

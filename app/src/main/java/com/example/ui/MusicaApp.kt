@@ -1,5 +1,6 @@
 package com.example.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -145,6 +146,9 @@ fun MusicaApp(
     val discoveryRecommendations by viewModel.discoveryRecommendations.collectAsStateWithLifecycle()
     val isDiscoveryLoading by viewModel.isDiscoveryLoading.collectAsStateWithLifecycle()
 
+    val dailyMixSongs by viewModel.dailyMixSongs.collectAsStateWithLifecycle()
+    val dailyMixLastUpdated by viewModel.dailyMixLastUpdated.collectAsStateWithLifecycle()
+
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
 
     val lyricsData by viewModel.lyricsData.collectAsStateWithLifecycle()
@@ -201,6 +205,25 @@ fun MusicaApp(
     }
 
     Box(modifier = modifier.fillMaxSize().background(colorScheme.background)) {
+        // System Back Button Navigation Handlers (Step-by-step back stack pops)
+        BackHandler(enabled = isNowPlayingExpanded || viewingArtistName != null || viewingGenre != null || showAuthSheet || showEqualizerSheet || showMoodPlaylistSheet || selectedAlbumForSheet != null) {
+            if (isNowPlayingExpanded) {
+                viewModel.closeNowPlaying()
+            } else if (viewingArtistName != null) {
+                viewingArtistName = null
+            } else if (viewingGenre != null) {
+                viewingGenre = null
+            } else if (showAuthSheet) {
+                showAuthSheet = false
+            } else if (showEqualizerSheet) {
+                showEqualizerSheet = false
+            } else if (showMoodPlaylistSheet) {
+                showMoodPlaylistSheet = false
+            } else if (selectedAlbumForSheet != null) {
+                selectedAlbumForSheet = null
+            }
+        }
+
         Scaffold(
             containerColor = colorScheme.background,
             bottomBar = {
@@ -375,6 +398,9 @@ fun MusicaApp(
                             favoriteSongs = favoriteSongs,
                             isLoading = isHomescreenLoading,
                             isPlaying = isPlaying,
+                            dailyMixSongs = dailyMixSongs,
+                            dailyMixLastUpdated = dailyMixLastUpdated,
+                            onRefreshDailyMix = { viewModel.updateOrLoadDailyMix(forceRefresh = true) },
                             onSelectCategory = { viewModel.selectCategory(it) },
                             onPlaySong = { song, playlist -> viewModel.playSong(song, playlist) },
                             onOpenSongDetails = { viewModel.openNowPlaying(it) },
@@ -409,7 +435,11 @@ fun MusicaApp(
                             onToggleOfflineMode = { viewModel.toggleOfflineMode() },
                             onOpenMoodPlaylistGenerator = { showMoodPlaylistSheet = true },
                             featuredAlbums = featuredAlbums,
-                            onOpenAlbum = { album -> selectedAlbumForSheet = album }
+                            onOpenAlbum = { album -> selectedAlbumForSheet = album },
+                            searchQuery = searchQuery,
+                            onSearchQueryChange = { viewModel.onSearchQueryChanged(it) },
+                            searchResults = searchResults,
+                            isSearching = isSearching
                         )
 
                         1 -> SearchScreen(

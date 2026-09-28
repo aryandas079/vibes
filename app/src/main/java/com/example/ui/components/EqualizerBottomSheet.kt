@@ -55,15 +55,21 @@ fun EqualizerBottomSheet(
         }
     }
 
-    val presets = remember {
-        try {
-            playerManager.getPresetNames()
-        } catch (e: Exception) {
-            listOf("Flat", "Rock", "Pop", "Jazz", "Classical", "Bass Boost")
-        }
+    val customPresets = remember {
+        mapOf(
+            "Flat" to shortArrayOf(0, 0, 0, 0, 0),
+            "Bass Boost" to shortArrayOf(1200, 800, 0, -200, -400),
+            "Acoustic" to shortArrayOf(400, 200, 400, 600, 800),
+            "Vocal Booster" to shortArrayOf(-300, -100, 800, 1000, 400),
+            "Electronic" to shortArrayOf(800, 400, -200, 600, 1000),
+            "Classical" to shortArrayOf(600, 400, -200, 400, 600),
+            "Rock" to shortArrayOf(800, 600, -400, 200, 1000)
+        )
     }
 
-    var selectedPreset by remember { mutableStateOf("Custom") }
+    val presets = customPresets.keys.toList()
+
+    var selectedPreset by remember { mutableStateOf("Flat") }
 
     // Animated visualizer spectrum wave
     val infiniteTransition = rememberInfiniteTransition(label = "EqualizerVisualizer")
@@ -207,9 +213,18 @@ fun EqualizerBottomSheet(
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 selectedPreset = presetName
                                 try {
-                                    playerManager.usePreset(index.toShort())
-                                    for (b in 0 until numBands) {
-                                        bandLevels[b] = playerManager.getBandLevel(b.toShort()).toFloat()
+                                    val levels = customPresets[presetName]
+                                    if (levels != null) {
+                                        for (b in 0 until numBands) {
+                                            val lvl = levels.getOrNull(b) ?: 0
+                                            bandLevels[b] = lvl.toFloat()
+                                            playerManager.setBandLevel(b.toShort(), lvl)
+                                        }
+                                    } else {
+                                        playerManager.usePreset(index.toShort())
+                                        for (b in 0 until numBands) {
+                                            bandLevels[b] = playerManager.getBandLevel(b.toShort()).toFloat()
+                                        }
                                     }
                                 } catch (e: Exception) {
                                     // Fallback

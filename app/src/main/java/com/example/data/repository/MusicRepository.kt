@@ -508,6 +508,67 @@ class MusicRepository(
     }
 
     /**
+     * Look up songs by their IDs from in-memory cache, curated catalog, or database.
+     */
+    suspend fun getSongsByIds(ids: List<Long>): List<Song> = withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext emptyList()
+        val foundMap = mutableMapOf<Long, Song>()
+
+        for (id in ids) {
+            songCache[id]?.let { foundMap[id] = it }
+        }
+
+        if (foundMap.size < ids.size) {
+            val curated = getCuratedCatalog()
+            curated.forEach { songCache[it.id] = it }
+            for (id in ids) {
+                if (!foundMap.containsKey(id)) {
+                    songCache[id]?.let { foundMap[id] = it }
+                }
+            }
+        }
+
+        if (foundMap.size < ids.size) {
+            val dbFavorites = songDao.getAllFavoritesList().map { it.toSong() }
+            val dbHistory = songDao.getAllHistoryList().map { it.toSong() }
+            (dbFavorites + dbHistory).forEach { songCache[it.id] = it }
+            for (id in ids) {
+                if (!foundMap.containsKey(id)) {
+                    songCache[id]?.let { foundMap[id] = it }
+                }
+            }
+        }
+
+        ids.mapNotNull { foundMap[it] }
+    }
+
+    /**
+     * Generates a Daily Mix of exactly 10 songs based on user recent plays and current trends.
+     */
+    suspend fun generateDailyMix(historySongs: List<Song>, trendingSongs: List<Song>): List<Song> = withContext(Dispatchers.IO) {
+        val recentPlays = historySongs.distinctBy { it.id }
+        val trends = trendingSongs.ifEmpty { getTrendingHits() }
+
+        // Take up to 5 tracks from recent plays
+        val recentPart = recentPlays.shuffled().take(5)
+
+        // Take remaining required tracks (to make 10 total) from trends
+        val needed = 10 - recentPart.size
+        val recentIds = recentPart.map { it.id }.toSet()
+        val trendsPart = trends.filter { it.id !in recentIds }.shuffled().take(needed)
+
+        val combined = (recentPart + trendsPart).distinctBy { it.id }.toMutableList()
+
+        if (combined.size < 10) {
+            val combinedIds = combined.map { it.id }.toSet()
+            val extraTrends = trends.filter { it.id !in combinedIds }
+            combined.addAll(extraTrends.take(10 - combined.size))
+        }
+
+        combined.take(10)
+    }
+
+    /**
      * Fetch trending global hits
      */
     suspend fun getTrendingHits(): List<Song> = withContext(Dispatchers.IO) {
