@@ -1,5 +1,9 @@
 package com.example.ui.screens
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -28,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Equalizer
@@ -41,6 +46,7 @@ import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Button
@@ -58,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -103,11 +110,18 @@ fun FavoritesScreen(
     modifier: Modifier = Modifier,
     deviceSongs: List<Song> = emptyList(),
     isScanningDeviceFiles: Boolean = false,
-    onSyncDeviceFiles: () -> Unit = {}
+    onSyncDeviceFiles: () -> Unit = {},
+    onOpenMoodPlaylistGenerator: () -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
     var selectedTab by remember { mutableStateOf(LibraryTab.SAVED_TRACKS) }
     var librarySearchQuery by remember { mutableStateOf("") }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        onSyncDeviceFiles()
+    }
 
     // Filtered items based on in-library search
     val filteredFavorites = remember(favoriteSongs, librarySearchQuery) {
@@ -317,11 +331,73 @@ fun FavoritesScreen(
                     }
 
                     if (filteredPlaylists.isEmpty()) {
-                        EmptyStateView(
-                            icon = Icons.Default.Album,
-                            title = if (librarySearchQuery.isBlank()) "No custom playlists yet" else "No matching playlists",
-                            description = "Create playlists to group your favorite tracks together for any mood or occasion."
-                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(Color(0xFF2E1065), StormBlackElevated)
+                                        )
+                                    )
+                                    .border(1.dp, Color(0xFFC084FC).copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                                    .clickable { onOpenMoodPlaylistGenerator() }
+                                    .padding(14.dp)
+                                    .testTag("library_create_gemini_playlist_empty")
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(38.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Tune,
+                                            contentDescription = null,
+                                            tint = Color(0xFFC084FC),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Mood & Activity Mix",
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFFF5F5F7)
+                                        )
+                                        Text(
+                                            text = "Sequence transitions by tempo, mood & vibe",
+                                            fontSize = 11.5.sp,
+                                            color = Color(0xFFA1A1AA)
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = null,
+                                        tint = Color(0xFFC084FC),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            EmptyStateView(
+                                icon = Icons.Default.Album,
+                                title = if (librarySearchQuery.isBlank()) "No custom playlists yet" else "No matching playlists",
+                                description = "Create playlists to group your favorite tracks together for any mood or occasion."
+                            )
+                        }
                     } else {
                         LazyColumn(
                             modifier = Modifier
@@ -330,6 +406,59 @@ fun FavoritesScreen(
                             contentPadding = PaddingValues(bottom = 120.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            // Mood & Activity Mix Prompt Item
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .liquidGlassEffect(shape = RoundedCornerShape(16.dp), elevation = 3.dp)
+                                        .border(1.dp, StormSlateBorder, RoundedCornerShape(16.dp))
+                                        .clickable { onOpenMoodPlaylistGenerator() }
+                                        .padding(14.dp)
+                                        .testTag("library_create_gemini_playlist_button")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(Color.White.copy(alpha = 0.08f))
+                                                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Tune,
+                                                contentDescription = null,
+                                                tint = Color(0xFFC084FC),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Mood & Activity Mix",
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFF5F5F7)
+                                            )
+                                            Text(
+                                                text = "Sequence transitions by tempo, mood & vibe",
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFFA1A1AA)
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.PlayArrow,
+                                            contentDescription = null,
+                                            tint = Color(0xFFC084FC),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
                             items(filteredPlaylists, key = { it.playlistId }) { playlist ->
                                 Box(
                                     modifier = Modifier
@@ -652,7 +781,14 @@ fun FavoritesScreen(
                                 }
 
                                 Button(
-                                    onClick = onSyncDeviceFiles,
+                                    onClick = {
+                                        val permissionToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                            Manifest.permission.READ_MEDIA_AUDIO
+                                        } else {
+                                            Manifest.permission.READ_EXTERNAL_STORAGE
+                                        }
+                                        permissionLauncher.launch(permissionToRequest)
+                                    },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = colorScheme.surfaceVariant,
                                         contentColor = colorScheme.onSurface

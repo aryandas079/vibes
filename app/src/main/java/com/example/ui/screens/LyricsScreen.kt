@@ -24,6 +24,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -50,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,6 +62,8 @@ import coil.compose.AsyncImage
 import com.example.model.LyricsData
 import com.example.model.Song
 import com.example.model.SyncedLyricLine
+import com.example.ui.components.KaraokeLyricLineView
+import com.example.ui.components.KaraokeWaveBars
 import com.example.ui.theme.*
 import com.example.util.LyricsEngine
 
@@ -230,60 +235,98 @@ fun LyricsScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Dropdown Selector: "Translation Language" with Liquid Glass
-            Box(
+            // Controls Row: Translation Language Dropdown & Karaoke Sync Badge
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp)
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .liquidGlassEffect(shape = RoundedCornerShape(12.dp), elevation = 4.dp)
-                        .clickable { isDropdownExpanded = true }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = "Translation Language",
-                            fontSize = 11.sp,
-                            color = colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = selectedLanguage,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colorScheme.onSurface
+                // Dropdown Selector: "Translation Language"
+                Box(modifier = Modifier.weight(1f)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .liquidGlassEffect(shape = RoundedCornerShape(14.dp), elevation = 3.dp)
+                            .clickable { isDropdownExpanded = true }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Translation",
+                                fontSize = 10.5.sp,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = selectedLanguage,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colorScheme.onSurface
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.ArrowDropDown,
+                            contentDescription = "Select Language",
+                            tint = colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    Icon(
-                        imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = "Select Language",
-                        tint = colorScheme.onSurfaceVariant
-                    )
+
+                    DropdownMenu(
+                        expanded = isDropdownExpanded,
+                        onDismissRequest = { isDropdownExpanded = false }
+                    ) {
+                        languages.forEach { lang ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = lang,
+                                        fontWeight = if (lang == selectedLanguage) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (lang == selectedLanguage) colorScheme.primary else colorScheme.onSurface
+                                    )
+                                },
+                                onClick = {
+                                    onSelectLanguage(lang)
+                                    isDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
                 }
 
-                DropdownMenu(
-                    expanded = isDropdownExpanded,
-                    onDismissRequest = { isDropdownExpanded = false }
+                // Live Karaoke Progress Status Pill
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(SpotifyGreen.copy(alpha = 0.16f))
+                        .border(1.dp, SpotifyGreen.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
                 ) {
-                    languages.forEach { lang ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = lang,
-                                    fontWeight = if (lang == selectedLanguage) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (lang == selectedLanguage) colorScheme.primary else colorScheme.onSurface
-                                )
-                            },
-                            onClick = {
-                                onSelectLanguage(lang)
-                                isDropdownExpanded = false
-                            }
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        KaraokeWaveBars(isPlaying = isPlaying)
+                        Column {
+                            Text(
+                                text = "KARAOKE SYNC",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                color = SpotifyGreen,
+                                letterSpacing = 0.6.sp
+                            )
+                            Text(
+                                text = if (activeIndex >= 0 && activeIndex < syncedLines.size)
+                                    "Line ${activeIndex + 1}/${syncedLines.size}"
+                                else "Ready",
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }
@@ -316,61 +359,37 @@ fun LyricsScreen(
                     }
                 } else {
                     // Preview Synced Karaoke View
+                    val effectiveDuration = if (durationMs > 0) durationMs else 30000L
+
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 40.dp),
-                        verticalArrangement = Arrangement.spacedBy(22.dp)
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .testTag("karaoke_lyrics_list"),
+                        contentPadding = PaddingValues(vertical = 36.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        itemsIndexed(syncedLines) { index, line ->
-                            val isActive = index == activeIndex
-                            val targetColor = when {
-                                isActive -> colorScheme.onSurface
-                                Math.abs(index - activeIndex) == 1 -> colorScheme.onSurface.copy(alpha = 0.65f)
-                                else -> colorScheme.onSurface.copy(alpha = 0.35f)
+                        itemsIndexed(syncedLines, key = { index, line -> "${line.timeMs}_$index" }) { index, line ->
+                            val nextTimeMs = if (index < syncedLines.lastIndex) {
+                                syncedLines[index + 1].timeMs
+                            } else {
+                                (line.timeMs + 4500L).coerceAtMost(effectiveDuration)
                             }
 
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onSeek(line.timeMs) }
-                                    .padding(vertical = 4.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                // Original lyric line
-                                Text(
-                                    text = line.text,
-                                    fontSize = if (isActive) 22.sp else 18.sp,
-                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isActive) WhiteSmokeLight else targetColor,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = if (isActive) 28.sp else 24.sp,
-                                    modifier = Modifier.fillMaxWidth(0.92f)
-                                )
-
-                                // Romanized reading
-                                if (!line.romanized.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = line.romanized!!,
-                                        fontSize = 13.sp,
-                                        color = if (isActive) WhiteSmokeSoft else colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                        textAlign = TextAlign.Center
-                                    )
+                            KaraokeLyricLineView(
+                                line = line,
+                                lineIndex = index,
+                                activeIndex = activeIndex,
+                                currentPositionMs = currentPositionMs,
+                                nextTimeMs = nextTimeMs,
+                                isPlaying = isPlaying,
+                                selectedLanguage = selectedLanguage,
+                                onSeek = { targetMs ->
+                                    onSeek(targetMs)
+                                    autoScrollEnabled = true
+                                    isUserInteracting = false
                                 }
-
-                                // Live Translation line
-                                if (!line.translation.isNullOrBlank() && selectedLanguage != "Original") {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = line.translation!!,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (isActive) WhiteSmokeSoft else colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
+                            )
                         }
                     }
                 }

@@ -25,6 +25,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudOff
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhoneAndroid
@@ -39,6 +42,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -54,11 +58,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.model.Album
 import com.example.model.Artist
 import com.example.model.DiscoveryRecommendation
 import com.example.model.HistoryItem
@@ -110,7 +116,10 @@ fun HomeScreen(
     isOfflineMode: Boolean = false,
     isScanningDeviceFiles: Boolean = false,
     onSyncDeviceFiles: () -> Unit = {},
-    onToggleOfflineMode: () -> Unit = {}
+    onToggleOfflineMode: () -> Unit = {},
+    onOpenMoodPlaylistGenerator: () -> Unit = {},
+    featuredAlbums: List<Album> = emptyList(),
+    onOpenAlbum: (Album) -> Unit = {}
 ) {
     val colorScheme = MaterialTheme.colorScheme
 
@@ -581,6 +590,125 @@ fun HomeScreen(
                 }
             }
 
+            // Section: Recent Plays (Stores the last 10 songs the user interacted with)
+            if (historyItems.isNotEmpty()) {
+                item {
+                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(SpotifyGreen.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.History,
+                                        contentDescription = "Recent Plays",
+                                        tint = SpotifyGreen,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "Recent Plays",
+                                    fontSize = 19.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colorScheme.onSurface,
+                                    letterSpacing = (-0.3).sp
+                                )
+                            }
+                            
+                            Text(
+                                text = "Revisit Tracks",
+                                fontSize = 11.sp,
+                                color = SpotifyGreen,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            items(historyItems.take(10), key = { it.historyId }) { historyItem ->
+                                val song = historyItem.song
+                                val isCurrent = song.id == currentPlayingId
+
+                                Column(
+                                    modifier = Modifier
+                                        .width(110.dp)
+                                        .clickable {
+                                            onPlaySong(song, historyItems.map { it.song })
+                                            onOpenSongDetails(song)
+                                        }
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(110.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                    ) {
+                                        AsyncImage(
+                                            model = song.artworkUrl,
+                                            contentDescription = song.title,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+
+                                        if (isCurrent && isPlaying) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .background(Color.Black.copy(alpha = 0.5f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.GraphicEq,
+                                                    contentDescription = "Playing",
+                                                    tint = SpotifyGreen,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Text(
+                                        text = song.title,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCurrent) SpotifyGreen else colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+
+                                    Text(
+                                        text = song.artist,
+                                        fontSize = 10.sp,
+                                        color = colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+
             // Section: Gemini AI Song Discovery
             item {
                 GeminiDiscoverySection(
@@ -600,6 +728,182 @@ fun HomeScreen(
                     currentPlayingId = currentPlayingId,
                     modifier = Modifier.padding(vertical = 6.dp)
                 )
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            // Section: Featured Albums
+            if (featuredAlbums.isNotEmpty()) {
+                item {
+                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.linearGradient(
+                                                listOf(Color(0xFFEC4899), Color(0xFF8B5CF6))
+                                            )
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Album,
+                                        contentDescription = "Featured Albums",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Featured Albums",
+                                            fontSize = 19.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = colorScheme.onSurface,
+                                            letterSpacing = (-0.3).sp
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0xFFEC4899).copy(alpha = 0.25f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "${featuredAlbums.size} ALBUMS",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = Color(0xFFF472B6)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "Complete studio records & full tracklists",
+                                        fontSize = 12.sp,
+                                        color = colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 20.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(featuredAlbums, key = { it.id }) { album ->
+                                val isAlbumPlaying = currentPlayingId != null && album.tracks.any { it.id == currentPlayingId } && isPlaying
+                                AlbumCardItem(
+                                    album = album,
+                                    isPlaying = isAlbumPlaying,
+                                    onClick = { onOpenAlbum(album) },
+                                    onPlayAlbum = {
+                                        if (album.tracks.isNotEmpty()) {
+                                            onPlaySong(album.tracks.first(), album.tracks)
+                                            onOpenSongDetails(album.tracks.first())
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+
+            // Section: Mood & Activity Sequencer Banner
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp)
+                        .liquidGlassEffect(shape = RoundedCornerShape(18.dp), elevation = 4.dp)
+                        .border(1.dp, StormSlateBorder, RoundedCornerShape(18.dp))
+                        .clickable { onOpenMoodPlaylistGenerator() }
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                        .testTag("mood_sequencer_banner")
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.06f))
+                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = null,
+                                tint = Color(0xFFC084FC),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Mood & Activity Mix",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colorScheme.onSurface,
+                                letterSpacing = (-0.2).sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Sequence transitions, tempo & vibe to match your flow",
+                                fontSize = 11.5.sp,
+                                color = colorScheme.onSurfaceVariant,
+                                lineHeight = 15.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SpotifyGreen.copy(alpha = 0.15f))
+                                .border(1.dp, SpotifyGreen.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 12.dp, vertical = 7.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "Create",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SpotifyGreen
+                                )
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                    contentDescription = null,
+                                    tint = SpotifyGreen,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            }
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
@@ -925,3 +1229,127 @@ fun GenreVectorCard(
         }
     }
 }
+
+@Composable
+fun AlbumCardItem(
+    album: Album,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    onPlayAlbum: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colorScheme = MaterialTheme.colorScheme
+
+    Column(
+        modifier = modifier
+            .width(165.dp)
+            .clickable(onClick = onClick)
+            .testTag("album_card_${album.id}")
+    ) {
+        // High-resolution Album Artwork with Badges & Play Button
+        Box(
+            modifier = Modifier
+                .size(165.dp)
+                .liquidGlassEffect(shape = RoundedCornerShape(20.dp), elevation = 6.dp)
+                .border(1.dp, StormSlateBorder, RoundedCornerShape(20.dp))
+        ) {
+            AsyncImage(
+                model = album.artworkUrl,
+                contentDescription = album.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(20.dp))
+            )
+
+            // Year Pill on Top-Left
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(StormBlackBg.copy(alpha = 0.82f))
+                    .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 7.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = album.releaseYear,
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = WhiteSmoke
+                )
+            }
+
+            // Track Count Pill on Bottom-Left
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(StormBlackBg.copy(alpha = 0.85f))
+                    .padding(horizontal = 7.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = "${album.tracks.size} TRACKS",
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Black,
+                    color = SpotifyGreen
+                )
+            }
+
+            // Quick Play Button Floating on Bottom-Right
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(if (isPlaying) SpotifyGreen else Color.Black.copy(alpha = 0.75f))
+                    .clickable { onPlayAlbum() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.GraphicEq else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Playing" else "Play Album",
+                    tint = if (isPlaying) Color.Black else Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Album Title
+        Text(
+            text = album.title,
+            fontSize = 14.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            letterSpacing = (-0.2).sp
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // Artist Name
+        Text(
+            text = album.artist,
+            fontSize = 12.sp,
+            color = colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // Genre
+        Text(
+            text = album.genre,
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFFC084FC)
+        )
+    }
+}
+

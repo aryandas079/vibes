@@ -8,11 +8,15 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +42,8 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -46,6 +52,7 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,6 +81,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -84,6 +92,8 @@ import coil.compose.AsyncImage
 import com.example.model.LyricsData
 import com.example.model.Song
 import com.example.model.SyncedLyricLine
+import com.example.ui.components.KaraokeLyricLineView
+import com.example.ui.components.KaraokeWaveBars
 import com.example.ui.components.PlayerTab
 import com.example.ui.components.PlayerTabNavigation
 import com.example.ui.components.StreamingHubsSection
@@ -120,12 +130,14 @@ fun NowPlayingScreen(
     onOpenQueue: (() -> Unit)? = null,
     onOpenSpotifyEmbed: () -> Unit,
     onOpenLyrics: () -> Unit = { onTabSelected(PlayerTab.LYRICS) },
+    onOpenEqualizer: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     onArtistClick: ((String) -> Unit)? = null
 ) {
     if (song == null) return
 
     val colorScheme = MaterialTheme.colorScheme
+    val view = LocalView.current
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -136,72 +148,86 @@ fun NowPlayingScreen(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            // Header: Back button, Tab navigation, and Action buttons (Queue & Favorite)
+            // Header: Modern slide-down button, Slim tab switcher, and Sleek actions (Equalizer & Queue)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(
-                    onClick = onClose,
+                    onClick = {
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                        onClose()
+                    },
                     modifier = Modifier
-                        .size(40.dp)
-                        .liquidGlassEffect(shape = CircleShape, elevation = 2.dp)
+                        .size(36.dp)
+                        .liquidGlassEffect(shape = CircleShape, elevation = 1.dp)
                         .testTag("player_back_button")
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Minimize Player",
                         tint = colorScheme.onSurface,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
                 PlayerTabNavigation(
                     selectedTab = selectedTab,
-                    onTabSelected = onTabSelected,
+                    onTabSelected = { tab ->
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                        onTabSelected(tab)
+                    },
                     isLyricsSynced = lyricsData?.syncedLines?.isNotEmpty() ?: true,
                     modifier = Modifier
-                        .width(200.dp)
+                        .width(180.dp)
                         .testTag("player_tab_bar")
                 )
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    if (onOpenEqualizer != null) {
+                        IconButton(
+                            onClick = {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onOpenEqualizer()
+                            },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .liquidGlassEffect(shape = CircleShape, elevation = 1.dp)
+                                .testTag("now_playing_equalizer_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = "Audio Equalizer",
+                                tint = Color(0xFFC084FC),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
                     if (onOpenQueue != null) {
                         IconButton(
-                            onClick = onOpenQueue,
+                            onClick = {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onOpenQueue()
+                            },
                             modifier = Modifier
-                                .size(40.dp)
-                                .liquidGlassEffect(shape = CircleShape, elevation = 2.dp)
+                                .size(36.dp)
+                                .liquidGlassEffect(shape = CircleShape, elevation = 1.dp)
                                 .testTag("now_playing_queue_button")
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                                 contentDescription = "Listening Session Queue",
                                 tint = colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
-                    }
-
-                    IconButton(
-                        onClick = { onToggleFavorite?.invoke() },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .liquidGlassEffect(shape = CircleShape, elevation = 2.dp)
-                            .testTag("player_favorite_button")
-                    ) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = if (isFavorite) "Remove Favorite" else "Add Favorite",
-                            tint = if (isFavorite) WhiteSmoke else colorScheme.onSurface,
-                            modifier = Modifier.size(22.dp)
-                        )
                     }
                 }
             }
@@ -211,16 +237,28 @@ fun NowPlayingScreen(
                 targetState = selectedTab,
                 transitionSpec = {
                     if (targetState == PlayerTab.LYRICS) {
-                        (slideInHorizontally { width -> width / 3 } + fadeIn()).togetherWith(
-                            slideOutHorizontally { width -> -width / 3 } + fadeOut()
+                        (slideInVertically { height -> height / 3 } + fadeIn(tween(250))).togetherWith(
+                            slideOutVertically { height -> -height / 3 } + fadeOut(tween(250))
                         )
                     } else {
-                        (slideInHorizontally { width -> -width / 3 } + fadeIn()).togetherWith(
-                            slideOutHorizontally { width -> width / 3 } + fadeOut()
+                        (slideInVertically { height -> -height / 3 } + fadeIn(tween(250))).togetherWith(
+                            slideOutVertically { height -> height / 3 } + fadeOut(tween(250))
                         )
                     }
                 },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .pointerInput(selectedTab) {
+                        detectVerticalDragGestures { _, dragAmount ->
+                            if (dragAmount < -35f && selectedTab == PlayerTab.NOW_PLAYING) {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onTabSelected(PlayerTab.LYRICS)
+                            } else if (dragAmount > 35f && selectedTab == PlayerTab.LYRICS) {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onTabSelected(PlayerTab.NOW_PLAYING)
+                            }
+                        }
+                    },
                 label = "player_tab_content"
             ) { tab ->
                 when (tab) {
@@ -234,6 +272,7 @@ fun NowPlayingScreen(
                             isShuffle = isShuffle,
                             isLooping = isLooping,
                             isFavorite = isFavorite,
+                            lyricsData = lyricsData,
                             onTogglePlayPause = onTogglePlayPause,
                             onSeek = onSeek,
                             onSeekBy = onSeekBy,
@@ -280,6 +319,7 @@ private fun NowPlayingViewContent(
     isShuffle: Boolean,
     isLooping: Boolean,
     isFavorite: Boolean = false,
+    lyricsData: LyricsData? = null,
     onTogglePlayPause: () -> Unit,
     onSeek: (Long) -> Unit,
     onSeekBy: ((Long) -> Unit)?,
@@ -294,6 +334,7 @@ private fun NowPlayingViewContent(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val effectiveDuration = if (durationMs > 0) durationMs else 30000L
+    val view = LocalView.current
 
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubPositionRatio by remember { mutableFloatStateOf(0f) }
@@ -305,19 +346,33 @@ private fun NowPlayingViewContent(
     val displayRatio = if (isScrubbing) scrubPositionRatio else currentRatio
     val displayPositionMs = if (isScrubbing) (scrubPositionRatio * effectiveDuration).toLong() else currentPositionMs
 
+    val syncedLines = lyricsData?.syncedLines ?: emptyList()
+    val activeIndex = remember(currentPositionMs, syncedLines) {
+        if (syncedLines.isEmpty()) -1
+        else {
+            val idx = syncedLines.indexOfLast { currentPositionMs >= it.timeMs }
+            if (idx == -1) 0 else idx
+        }
+    }
+    val activeLineText: String = if (activeIndex in syncedLines.indices) {
+        syncedLines[activeIndex].text
+    } else {
+        lyricsData?.plainLyrics?.lines()?.firstOrNull { it.isNotBlank() } ?: "Tap or drag up for real-time lyrics"
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        contentPadding = PaddingValues(top = 10.dp, bottom = 32.dp)
+        contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
     ) {
-        // Large Rounded Album Art with Liquid Glass Glow
+        // Compact Album Art with Subtle Glass Glow
         item {
             Box(
                 modifier = Modifier
-                    .size(260.dp)
-                    .liquidGlassEffect(shape = RoundedCornerShape(26.dp), elevation = 16.dp),
+                    .size(220.dp)
+                    .liquidGlassEffect(shape = RoundedCornerShape(22.dp), elevation = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
@@ -326,16 +381,16 @@ private fun NowPlayingViewContent(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(26.dp))
+                        .clip(RoundedCornerShape(22.dp))
                 )
 
                 if (isPlaying) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(12.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(StormBlackBg.copy(alpha = 0.65f))
+                            .padding(10.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(StormBlackBg.copy(alpha = 0.70f))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Row(
@@ -346,22 +401,22 @@ private fun NowPlayingViewContent(
                                 imageVector = Icons.Default.GraphicEq,
                                 contentDescription = null,
                                 tint = SpotifyGreen,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(14.dp)
                             )
                             Text(
                                 text = "PLAYING",
                                 color = SpotifyGreen,
-                                fontSize = 10.sp,
+                                fontSize = 9.5.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // Song Title & Artist with Prominent Heart Toggle (Room DB)
+        // Song Title & Artist with Favorite Heart Button
         item {
             Row(
                 modifier = Modifier
@@ -373,17 +428,18 @@ private fun NowPlayingViewContent(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = song.title,
-                        fontSize = 21.sp,
+                        fontSize = 19.sp,
                         fontWeight = FontWeight.Bold,
                         color = colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        letterSpacing = (-0.2).sp
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
                         text = "${song.artist} • ${song.album}",
-                        fontSize = 14.sp,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.Medium,
                         color = colorScheme.primary,
                         maxLines = 1,
@@ -394,66 +450,36 @@ private fun NowPlayingViewContent(
                     )
                 }
 
-                // Heart Icon Toggle for saving to Room Database
                 IconButton(
                     onClick = { onToggleFavorite?.invoke() },
                     modifier = Modifier
-                        .size(46.dp)
-                        .liquidGlassEffect(shape = CircleShape, elevation = 3.dp)
+                        .size(42.dp)
+                        .liquidGlassEffect(shape = CircleShape, elevation = 2.dp)
                         .testTag("player_heart_toggle_button")
                 ) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                        contentDescription = if (isFavorite) "Saved in Room DB" else "Save to Favorites",
+                        contentDescription = if (isFavorite) "Saved in Favorites" else "Save to Favorites",
                         tint = if (isFavorite) WhiteSmoke else colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // Dedicated Audio Player UI (Seek Bar + Controls)
+        // Streamlined Audio Player Card (Seek Bar & Playback Controls)
         item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlassEffect(shape = RoundedCornerShape(24.dp), elevation = 8.dp)
-                    .padding(18.dp)
+                    .liquidGlassEffect(shape = RoundedCornerShape(20.dp), elevation = 6.dp)
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "30s Audio Preview Scrubber",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colorScheme.onSurfaceVariant
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(colorScheme.primary.copy(alpha = 0.15f))
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "HD AUDIO",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colorScheme.primary
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
                     Slider(
                         value = displayRatio,
                         onValueChange = { frac ->
@@ -482,44 +508,20 @@ private fun NowPlayingViewContent(
                     ) {
                         Text(
                             text = formatTime(displayPositionMs),
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = if (isScrubbing) colorScheme.primary else colorScheme.onSurfaceVariant
                         )
 
                         Text(
                             text = formatTime(effectiveDuration),
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
                             color = colorScheme.onSurfaceVariant
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-                    ) {
-                        QuickSeekChip(
-                            label = "-5s",
-                            onClick = { onSeekBy?.invoke(-5000L) ?: onSeek((currentPositionMs - 5000L).coerceAtLeast(0L)) }
-                        )
-                        QuickSeekChip(
-                            label = "Start 0:00",
-                            onClick = { onSeek(0L) }
-                        )
-                        QuickSeekChip(
-                            label = "Mid 0:15",
-                            onClick = { onSeek(15000L) }
-                        )
-                        QuickSeekChip(
-                            label = "+5s",
-                            onClick = { onSeekBy?.invoke(5000L) ?: onSeek((currentPositionMs + 5000L).coerceAtMost(effectiveDuration)) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -527,36 +529,42 @@ private fun NowPlayingViewContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
-                            onClick = { onToggleShuffle?.invoke() },
+                            onClick = {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onToggleShuffle?.invoke()
+                            },
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(40.dp)
                                 .testTag("player_shuffle_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Shuffle,
                                 contentDescription = "Shuffle",
                                 tint = if (isShuffle) colorScheme.primary else colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
 
                         IconButton(
-                            onClick = { onPrevious?.invoke() },
+                            onClick = {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onPrevious?.invoke()
+                            },
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(44.dp)
                                 .testTag("player_prev_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.SkipPrevious,
                                 contentDescription = "Previous Song",
                                 tint = colorScheme.onSurface,
-                                modifier = Modifier.size(30.dp)
+                                modifier = Modifier.size(28.dp)
                             )
                         }
 
                         Box(
                             modifier = Modifier
-                                .size(64.dp)
+                                .size(58.dp)
                                 .clip(CircleShape)
                                 .background(
                                     Brush.radialGradient(
@@ -566,8 +574,11 @@ private fun NowPlayingViewContent(
                                         )
                                     )
                                 )
-                                .border(2.dp, WhiteSmoke.copy(alpha = 0.3f), CircleShape)
-                                .clickable { onTogglePlayPause() }
+                                .border(1.5.dp, WhiteSmoke.copy(alpha = 0.3f), CircleShape)
+                                .clickable {
+                                    view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                    onTogglePlayPause()
+                                }
                                 .testTag("player_play_pause_button"),
                             contentAlignment = Alignment.Center
                         ) {
@@ -575,81 +586,130 @@ private fun NowPlayingViewContent(
                                 CircularProgressIndicator(
                                     color = colorScheme.onPrimary,
                                     strokeWidth = 3.dp,
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(26.dp)
                                 )
                             } else {
                                 Icon(
                                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     contentDescription = if (isPlaying) "Pause" else "Play",
                                     tint = colorScheme.onPrimary,
-                                    modifier = Modifier.size(36.dp)
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
                         }
 
                         IconButton(
-                            onClick = { onNext?.invoke() },
+                            onClick = {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onNext?.invoke()
+                            },
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(44.dp)
                                 .testTag("player_next_button")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.SkipNext,
                                 contentDescription = "Next Song",
                                 tint = colorScheme.onSurface,
-                                modifier = Modifier.size(30.dp)
+                                modifier = Modifier.size(28.dp)
                             )
                         }
 
                         IconButton(
-                            onClick = { onToggleLoop?.invoke() },
+                            onClick = {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onToggleLoop?.invoke()
+                            },
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(40.dp)
                                 .testTag("player_repeat_button")
                         ) {
                             Icon(
                                 imageVector = if (isLooping) Icons.Default.RepeatOne else Icons.Default.Repeat,
                                 contentDescription = "Repeat",
                                 tint = if (isLooping) colorScheme.primary else colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // "Show Synced Lyrics" Button
+        // Draggable Interactive Synced Lyrics Card Drawer
         item {
-            Button(
-                onClick = onOpenLyrics,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
-                    .testTag("show_lyrics_tab_button"),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colorScheme.primary,
-                    contentColor = colorScheme.onPrimary
-                ),
-                shape = RoundedCornerShape(16.dp)
+                    .liquidGlassEffect(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
+                    .border(1.dp, SpotifyGreen.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                    .clickable {
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                        onOpenLyrics()
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .testTag("show_lyrics_tab_button")
             ) {
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "View Real-Time Synced Lyrics",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Drag handle pill bar
+                    Box(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.25f))
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        KaraokeWaveBars(isPlaying = isPlaying)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = activeLineText,
+                            modifier = Modifier.weight(1f, fill = false),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SpotifyGreen,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowUp,
+                            contentDescription = "Drag or tap for real-time lyrics",
+                            tint = Color.White.copy(alpha = 0.60f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Drag or tap for real-time lyrics",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White.copy(alpha = 0.60f)
+                        )
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // Metadata Stats Row
+        // Compact Metadata Row
         item {
             val producers = when {
                 song.title.contains("Cruel Summer", ignoreCase = true) -> "Jack Antonoff, St. Vincent"
@@ -687,25 +747,25 @@ private fun NowPlayingViewContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .liquidGlassEffect(shape = RoundedCornerShape(16.dp), elevation = 4.dp)
-                    .padding(vertical = 14.dp, horizontal = 16.dp),
+                    .liquidGlassEffect(shape = RoundedCornerShape(16.dp), elevation = 3.dp)
+                    .padding(vertical = 10.dp, horizontal = 14.dp),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "Release", fontSize = 11.sp, color = colorScheme.onSurfaceVariant)
+                    Text(text = "Release", fontSize = 10.5.sp, color = colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(text = song.releaseYear, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
+                    Text(text = song.releaseYear, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
                 }
 
-                Box(modifier = Modifier.width(1.dp).height(24.dp).background(colorScheme.onSurface.copy(alpha = 0.12f)))
+                Box(modifier = Modifier.width(1.dp).height(20.dp).background(colorScheme.onSurface.copy(alpha = 0.12f)))
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f, fill = false)) {
-                    Text(text = "Producers", fontSize = 11.sp, color = colorScheme.onSurfaceVariant)
+                    Text(text = "Producers", fontSize = 10.5.sp, color = colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = producers,
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = colorScheme.onSurface,
                         maxLines = 1,
@@ -713,15 +773,15 @@ private fun NowPlayingViewContent(
                     )
                 }
 
-                Box(modifier = Modifier.width(1.dp).height(24.dp).background(colorScheme.onSurface.copy(alpha = 0.12f)))
+                Box(modifier = Modifier.width(1.dp).height(20.dp).background(colorScheme.onSurface.copy(alpha = 0.12f)))
 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(text = "Streams", fontSize = 11.sp, color = colorScheme.onSurfaceVariant)
+                    Text(text = "Streams", fontSize = 10.5.sp, color = colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(text = views, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
+                    Text(text = views, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
                 }
             }
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
         // Major Music Streaming Platforms Deep Links Section
@@ -1018,6 +1078,8 @@ private fun LyricsViewContent(
                     )
                 }
             } else {
+                val effectiveDuration = if (durationMs > 0) durationMs else 30000L
+
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -1026,97 +1088,27 @@ private fun LyricsViewContent(
                     contentPadding = PaddingValues(vertical = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    itemsIndexed(syncedLines) { index, line ->
-                        val isActive = index == activeIndex
-                        val scale by animateFloatAsState(
-                            targetValue = if (isActive) 1.04f else 1.0f,
-                            animationSpec = tween(300),
-                            label = "lyric_scale"
-                        )
-                        val targetColor = when {
-                            isActive -> colorScheme.onSurface
-                            Math.abs(index - activeIndex) == 1 -> colorScheme.onSurface.copy(alpha = 0.65f)
-                            else -> colorScheme.onSurface.copy(alpha = 0.35f)
+                    itemsIndexed(syncedLines, key = { index, line -> "${line.timeMs}_$index" }) { index, line ->
+                        val nextTimeMs = if (index < syncedLines.lastIndex) {
+                            syncedLines[index + 1].timeMs
+                        } else {
+                            (line.timeMs + 4500L).coerceAtMost(effectiveDuration)
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .scale(scale)
-                                .then(
-                                    if (isActive) {
-                                        Modifier
-                                            .liquidGlassEffect(shape = RoundedCornerShape(16.dp), elevation = 4.dp)
-                                            .border(1.dp, colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                                            .padding(horizontal = 12.dp, vertical = 10.dp)
-                                    } else {
-                                        Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                                    }
-                                )
-                                .clickable {
-                                    onSeek(line.timeMs)
-                                    autoScrollEnabled = true
-                                    isUserInteracting = false
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                if (isActive) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                        modifier = Modifier.padding(bottom = 4.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.GraphicEq,
-                                            contentDescription = null,
-                                            tint = SpotifyGreen,
-                                            modifier = Modifier.size(13.dp)
-                                        )
-                                        Text(
-                                            text = formatTime(line.timeMs),
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = SpotifyGreen
-                                        )
-                                    }
-                                }
-
-                                Text(
-                                    text = line.text,
-                                    fontSize = if (isActive) 21.sp else 17.sp,
-                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isActive) WhiteSmokeLight else targetColor,
-                                    textAlign = TextAlign.Center,
-                                    lineHeight = if (isActive) 27.sp else 23.sp,
-                                    modifier = Modifier.fillMaxWidth(0.94f)
-                                )
-
-                                if (!line.romanized.isNullOrBlank()) {
-                                    Spacer(modifier = Modifier.height(3.dp))
-                                    Text(
-                                        text = line.romanized!!,
-                                        fontSize = 13.sp,
-                                        color = if (isActive) WhiteSmokeSoft else colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-
-                                if (!line.translation.isNullOrBlank() && selectedLanguage != "Original") {
-                                    Spacer(modifier = Modifier.height(3.dp))
-                                    Text(
-                                        text = line.translation!!,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (isActive) SpotifyGreen else colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
+                        KaraokeLyricLineView(
+                            line = line,
+                            lineIndex = index,
+                            activeIndex = activeIndex,
+                            currentPositionMs = currentPositionMs,
+                            nextTimeMs = nextTimeMs,
+                            isPlaying = isPlaying,
+                            selectedLanguage = selectedLanguage,
+                            onSeek = { targetMs ->
+                                onSeek(targetMs)
+                                autoScrollEnabled = true
+                                isUserInteracting = false
                             }
-                        }
+                        )
                     }
                 }
             }

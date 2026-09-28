@@ -9,10 +9,14 @@ import com.example.data.local.HistorySongEntity
 import com.example.data.local.SongDao
 import com.example.data.remote.DeezerTrackItem
 import com.example.data.remote.GeminiDiscoveryService
+import com.example.data.remote.GeminiMoodPlaylistService
 import com.example.data.remote.ItunesTrackItem
 import com.example.data.remote.NetworkClient
+import com.example.model.Album
 import com.example.model.Artist
 import com.example.model.DiscoveryRecommendation
+import com.example.model.GeminiMoodPlaylist
+import com.example.model.GeminiTrackSequence
 import com.example.model.GenreChartData
 import com.example.model.HistoryItem
 import com.example.model.LyricsData
@@ -30,6 +34,7 @@ class MusicRepository(
     private val songCache = mutableMapOf<Long, Song>()
     private val lyricsCache = mutableMapOf<Long, LyricsData>()
     private val geminiService = GeminiDiscoveryService()
+    private val geminiMoodService = GeminiMoodPlaylistService()
     val firestoreSync = FirestoreSyncManager()
 
     var activeUserId: String? = null
@@ -1242,15 +1247,367 @@ class MusicRepository(
                 releaseYear = "2016",
                 spotifyTrackId = "7MXVkk9YM5IZxh0wAEWWE9",
                 artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/581693b4724a7fcfa754455101e13a44/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2001L,
+                title = "Taste",
+                artist = "Sabrina Carpenter",
+                album = "Short n' Sweet",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/57/e8/7b/57e87ba0-5057-9bb9-c247-ce7dbe426e89/24UMGIM55213.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/bf/20/46/bf204646-639a-df3a-3bbd-a169e5b22b64/mzaf_16405786413247076472.plus.aac.p.m4a",
+                durationMs = 157000L,
+                genre = "Pop",
+                releaseYear = "2024",
+                spotifyTrackId = "2482329849",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/4a9cdc7737e2a0e59b4917b47884b859/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2021L,
+                title = "Lunch",
+                artist = "Billie Eilish",
+                album = "HIT ME HARD AND SOFT",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a4/d1/2b/a4d12b07-062e-4b2a-875f-2c3565e3176d/24UMGIM39257.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/dc/49/a0/dc49a081-64d8-c68e-a226-621516e8812c/mzaf_13337951566412128913.plus.aac.p.m4a",
+                durationMs = 179000L,
+                genre = "Alternative",
+                releaseYear = "2024",
+                spotifyTrackId = "6238947239",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/8eab1a9a644889aabaca1e193e05f984/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2051L,
+                title = "Good Luck, Babe!",
+                artist = "Chappell Roan",
+                album = "The Rise and Fall of a Midwest Princess",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/91/9f/8e/919f8e40-5a50-6a56-b072-f67f082e6ff7/24UMGIM32009.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/8a/be/73/8abe734e-03eb-7b70-7ae6-ea81966a34ea/mzaf_15137631797407745471.plus.aac.p.m4a",
+                durationMs = 218000L,
+                genre = "Pop",
+                releaseYear = "2024",
+                spotifyTrackId = "0G21P4mgVO0Cu2nFmPtpWv",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/044a3f315b041864887a8dd8709e6926/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2002L,
+                title = "Please Please Please",
+                artist = "Sabrina Carpenter",
+                album = "Short n' Sweet",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/57/e8/7b/57e87ba0-5057-9bb9-c247-ce7dbe426e89/24UMGIM55213.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bb/68/c0/bb68c07e-97ec-f62f-04ad-737719602495/mzaf_6718420658406734139.plus.aac.p.m4a",
+                durationMs = 186000L,
+                genre = "Pop",
+                releaseYear = "2024",
+                spotifyTrackId = "5N3FcQgLL4zg0jqn008fP6",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/4a9cdc7737e2a0e59b4917b47884b859/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2003L,
+                title = "Feather",
+                artist = "Sabrina Carpenter",
+                album = "Short n' Sweet",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/b4/6d/2c/b46d2cb1-3cf9-dcbf-24c6-43c2d4ce0fe2/23UMGIM26792.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/91/3c/62/913c6258-0eb9-269e-d309-847253503f19/mzaf_10214643765103444455.plus.aac.p.m4a",
+                durationMs = 185000L,
+                genre = "Pop",
+                releaseYear = "2023",
+                spotifyTrackId = "2hnMS47jN0vLV2eNsE9x8a",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/4a9cdc7737e2a0e59b4917b47884b859/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2022L,
+                title = "CHIHIRO",
+                artist = "Billie Eilish",
+                album = "HIT ME HARD AND SOFT",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a4/d1/2b/a4d12b07-062e-4b2a-875f-2c3565e3176d/24UMGIM39257.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/2e/c5/4a/2ec54ab6-61a7-067f-2b0b-788df634f19b/mzaf_8497334185250499708.plus.aac.p.m4a",
+                durationMs = 303000L,
+                genre = "Alternative",
+                releaseYear = "2024",
+                spotifyTrackId = "7BRDOWTiSR2drnDTMB2z0M",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/8eab1a9a644889aabaca1e193e05f984/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2023L,
+                title = "WILDFLOWER",
+                artist = "Billie Eilish",
+                album = "HIT ME HARD AND SOFT",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a4/d1/2b/a4d12b07-062e-4b2a-875f-2c3565e3176d/24UMGIM39257.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/4b/81/2a/4b812a02-23f2-8959-1a35-c38a1cf45bf4/mzaf_1135399237022217274.plus.aac.p.m4a",
+                durationMs = 261000L,
+                genre = "Alternative",
+                releaseYear = "2024",
+                spotifyTrackId = "25wh6Q64Wf5N6bHh6q0u4n",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/8eab1a9a644889aabaca1e193e05f984/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2041L,
+                title = "Fortnight (feat. Post Malone)",
+                artist = "Taylor Swift",
+                album = "THE TORTURED POETS DEPARTMENT",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/be/a2/2a/bea22a57-2e65-27a9-95a9-e0925e0e0e0d/24UMGIM28741.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/21/58/01/215801c3-2d58-c92e-13cb-77bc3dbbe975/mzaf_7197022248517781079.plus.aac.p.m4a",
+                durationMs = 228000L,
+                genre = "Pop",
+                releaseYear = "2024",
+                spotifyTrackId = "6dOtVTDmmpgnpuAcdoIG06",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/e1ab8d94097640e46973cdc0cffcdaee/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2042L,
+                title = "I Can Do It With a Broken Heart",
+                artist = "Taylor Swift",
+                album = "THE TORTURED POETS DEPARTMENT",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/be/a2/2a/bea22a57-2e65-27a9-95a9-e0925e0e0e0d/24UMGIM28741.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/3d/bf/b1/3dbfb1b4-2da3-02f5-b732-2d1bbcf72ec1/mzaf_10335041071221764353.plus.aac.p.m4a",
+                durationMs = 218000L,
+                genre = "Pop",
+                releaseYear = "2024",
+                spotifyTrackId = "201v2s7C7xXgq6Jg0B3y5x",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/e1ab8d94097640e46973cdc0cffcdaee/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2031L,
+                title = "I Feel It Coming (feat. Daft Punk)",
+                artist = "The Weeknd",
+                album = "Starboy",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b5/92/bb/b592bb72-52e3-e756-9b26-9f56d08f47ab/16UMGIM67864.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/7e/17/dc/7e17dc3c-b175-1031-1579-2ef531238d97/mzaf_16405786413247076472.plus.aac.p.m4a",
+                durationMs = 269000L,
+                genre = "R&B",
+                releaseYear = "2016",
+                spotifyTrackId = "3dhjNA0jGA5umTy6o19eMY",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/581693b4724a7fcfa754455101e13a44/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2032L,
+                title = "Die For You",
+                artist = "The Weeknd",
+                album = "Starboy",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b5/92/bb/b592bb72-52e3-e756-9b26-9f56d08f47ab/16UMGIM67864.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/a5/d8/d5/a5d8d5df-79ee-a332-9f3b-fa2a74c43555/mzaf_12405822301980838612.plus.aac.p.m4a",
+                durationMs = 260000L,
+                genre = "R&B",
+                releaseYear = "2016",
+                spotifyTrackId = "2Ch7LmS7r2D290v8B3z8G2",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/581693b4724a7fcfa754455101e13a44/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2052L,
+                title = "HOT TO GO!",
+                artist = "Chappell Roan",
+                album = "The Rise and Fall of a Midwest Princess",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/88/44/2c/88442ce5-e6a8-bf96-9812-42fe1e48ebfc/23UMGIM81577.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/37/10/7c/37107c12-3298-6bb8-7a54-6e8ca8a05c31/mzaf_613398357022217274.plus.aac.p.m4a",
+                durationMs = 184000L,
+                genre = "Pop",
+                releaseYear = "2023",
+                spotifyTrackId = "7449339324",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/044a3f315b041864887a8dd8709e6926/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2053L,
+                title = "Pink Pony Club",
+                artist = "Chappell Roan",
+                album = "The Rise and Fall of a Midwest Princess",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/88/44/2c/88442ce5-e6a8-bf96-9812-42fe1e48ebfc/23UMGIM81577.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/e5/cb/a0/e5cba028-ebaa-3bfa-8742-df8d93c1d91a/mzaf_554140808559155562.plus.aac.p.m4a",
+                durationMs = 258000L,
+                genre = "Pop",
+                releaseYear = "2023",
+                spotifyTrackId = "1283719238",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/044a3f315b041864887a8dd8709e6926/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2061L,
+                title = "Houdini",
+                artist = "Dua Lipa",
+                album = "Radical Optimism",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/55/cb/72/55cb72b3-e570-34ee-0985-71e897931ee7/5054197875955.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/8e/3c/69/8e3c6901-b66e-21ee-cb96-d475685352cf/mzaf_10406859423659220377.plus.aac.p.m4a",
+                durationMs = 185000L,
+                genre = "Dance-Pop",
+                releaseYear = "2024",
+                spotifyTrackId = "5N3FcQgLL4zg0jqn008fP6",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/77b8b408e00d7fbef4ad94eb22a2bb8b/500x500-000000-80-0-0.jpg"
+            ),
+            Song(
+                id = 2062L,
+                title = "Not Like Us",
+                artist = "Kendrick Lamar",
+                album = "Not Like Us",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a4/09/a6/a409a6c9-e740-1e5f-1492-dc203da7bf88/24UMGIM54737.rgb.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/cf/19/21/cf1921c5-f852-25fe-20d4-13554477c44e/mzaf_1135399237022217274.plus.aac.p.m4a",
+                durationMs = 274000L,
+                genre = "Hip-Hop",
+                releaseYear = "2024",
+                spotifyTrackId = "6AI3ezQ4o3HUJW82JyBuHG",
+                artistImageUrl = "https://cdn-images.dzcdn.net/images/artist/c6655c6896e0018a36fa5113d09f6b95/500x500-000000-80-0-0.jpg"
+            )
+        )
+    }
+
+    /**
+     * Curated Featured & Trending Albums with high-resolution artwork and full tracklists.
+     */
+    fun getFeaturedAlbums(): List<Album> {
+        val allSongs = getCuratedCatalog()
+
+        val shortNSweetTracks = listOfNotNull(
+            allSongs.firstOrNull { it.id == 1005L }, // Espresso
+            allSongs.firstOrNull { it.id == 2001L }, // Taste
+            allSongs.firstOrNull { it.id == 2002L }, // Please Please Please
+            allSongs.firstOrNull { it.id == 2003L }  // Feather
+        )
+
+        val hitMeHardTracks = listOfNotNull(
+            allSongs.firstOrNull { it.id == 1003L }, // Birds of a Feather
+            allSongs.firstOrNull { it.id == 2021L }, // Lunch
+            allSongs.firstOrNull { it.id == 2022L }, // CHIHIRO
+            allSongs.firstOrNull { it.id == 2023L }  // WILDFLOWER
+        )
+
+        val starboyTracks = listOfNotNull(
+            allSongs.firstOrNull { it.id == 1009L }, // Starboy
+            allSongs.firstOrNull { it.id == 2031L }, // I Feel It Coming
+            allSongs.firstOrNull { it.id == 2032L }  // Die For You
+        )
+
+        val ttpdTracks = listOfNotNull(
+            allSongs.firstOrNull { it.id == 2041L }, // Fortnight
+            allSongs.firstOrNull { it.id == 2042L }, // I Can Do It With a Broken Heart
+            allSongs.firstOrNull { it.id == 1002L }  // Cruel Summer
+        )
+
+        val afterHoursTracks = listOfNotNull(
+            allSongs.firstOrNull { it.id == 1001L }, // Blinding Lights
+            allSongs.firstOrNull { it.id == 2031L }, // I Feel It Coming
+            allSongs.firstOrNull { it.id == 2032L }  // Die For You
+        )
+
+        val harrysHouseTracks = listOfNotNull(
+            allSongs.firstOrNull { it.id == 1008L }, // As It Was
+            Song(
+                id = 2071L,
+                title = "Late Night Talking",
+                artist = "Harry Styles",
+                album = "Harry's House",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/2a/19/fb/2a19fb85-2f70-9e44-f2a9-82abe679b88e/886449990061.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/5a/04/b5/5a04b503-4f93-c967-df45-ae52627e382d/mzaf_1281793130090250096.plus.aac.p.m4a",
+                durationMs = 177000L,
+                genre = "Indie Pop",
+                releaseYear = "2022"
+            ),
+            Song(
+                id = 2072L,
+                title = "Music For a Sushi Restaurant",
+                artist = "Harry Styles",
+                album = "Harry's House",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/2a/19/fb/2a19fb85-2f70-9e44-f2a9-82abe679b88e/886449990061.jpg/600x600bb.jpg",
+                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/29/73/ae/2973aee0-9943-42e1-45fe-5d6c81068802/mzaf_1135399237022217274.plus.aac.p.m4a",
+                durationMs = 193000L,
+                genre = "Indie Pop",
+                releaseYear = "2022"
+            )
+        )
+
+        val chappellTracks = listOfNotNull(
+            allSongs.firstOrNull { it.id == 2051L }, // Good Luck, Babe!
+            allSongs.firstOrNull { it.id == 2052L }, // HOT TO GO!
+            allSongs.firstOrNull { it.id == 2053L }  // Pink Pony Club
+        )
+
+        // Cache all album songs
+        (shortNSweetTracks + hitMeHardTracks + starboyTracks + ttpdTracks + afterHoursTracks + harrysHouseTracks + chappellTracks).forEach {
+            songCache[it.id] = it
+        }
+
+        return listOf(
+            Album(
+                id = 3001L,
+                title = "Short n' Sweet",
+                artist = "Sabrina Carpenter",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/57/e8/7b/57e87ba0-5057-9bb9-c247-ce7dbe426e89/24UMGIM55213.rgb.jpg/600x600bb.jpg",
+                releaseYear = "2024",
+                genre = "Pop",
+                trackCount = shortNSweetTracks.size,
+                tracks = shortNSweetTracks,
+                topFeaturedSongs = shortNSweetTracks.take(3)
+            ),
+            Album(
+                id = 3002L,
+                title = "HIT ME HARD AND SOFT",
+                artist = "Billie Eilish",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a4/d1/2b/a4d12b07-062e-4b2a-875f-2c3565e3176d/24UMGIM39257.rgb.jpg/600x600bb.jpg",
+                releaseYear = "2024",
+                genre = "Alternative",
+                trackCount = hitMeHardTracks.size,
+                tracks = hitMeHardTracks,
+                topFeaturedSongs = hitMeHardTracks.take(3)
+            ),
+            Album(
+                id = 3003L,
+                title = "THE TORTURED POETS DEPARTMENT",
+                artist = "Taylor Swift",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/be/a2/2a/bea22a57-2e65-27a9-95a9-e0925e0e0e0d/24UMGIM28741.rgb.jpg/600x600bb.jpg",
+                releaseYear = "2024",
+                genre = "Pop",
+                trackCount = ttpdTracks.size,
+                tracks = ttpdTracks,
+                topFeaturedSongs = ttpdTracks.take(3)
+            ),
+            Album(
+                id = 3004L,
+                title = "Starboy",
+                artist = "The Weeknd",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b5/92/bb/b592bb72-52e3-e756-9b26-9f56d08f47ab/16UMGIM67864.rgb.jpg/600x600bb.jpg",
+                releaseYear = "2016",
+                genre = "R&B / Electronic",
+                trackCount = starboyTracks.size,
+                tracks = starboyTracks,
+                topFeaturedSongs = starboyTracks.take(3)
+            ),
+            Album(
+                id = 3005L,
+                title = "After Hours",
+                artist = "The Weeknd",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/e5/7f/0f/e57f0f63-0f9c-7c08-01e4-d5792ecf607a/20UMGIM08215.rgb.jpg/600x600bb.jpg",
+                releaseYear = "2020",
+                genre = "Synthwave",
+                trackCount = afterHoursTracks.size,
+                tracks = afterHoursTracks,
+                topFeaturedSongs = afterHoursTracks.take(3)
+            ),
+            Album(
+                id = 3006L,
+                title = "The Rise and Fall of a Midwest Princess",
+                artist = "Chappell Roan",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/88/44/2c/88442ce5-e6a8-bf96-9812-42fe1e48ebfc/23UMGIM81577.rgb.jpg/600x600bb.jpg",
+                releaseYear = "2023",
+                genre = "Pop",
+                trackCount = chappellTracks.size,
+                tracks = chappellTracks,
+                topFeaturedSongs = chappellTracks.take(3)
+            ),
+            Album(
+                id = 3007L,
+                title = "Harry's House",
+                artist = "Harry Styles",
+                artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/2a/19/fb/2a19fb85-2f70-9e44-f2a9-82abe679b88e/886449990061.jpg/600x600bb.jpg",
+                releaseYear = "2022",
+                genre = "Indie Pop",
+                trackCount = harrysHouseTracks.size,
+                tracks = harrysHouseTracks,
+                topFeaturedSongs = harrysHouseTracks.take(3)
             )
         )
     }
 
     suspend fun getGeminiDiscoveryRecommendations(
+        searchHistory: List<String> = emptyList(),
         history: List<HistoryItem>,
         favorites: List<Song>
     ): List<DiscoveryRecommendation> = withContext(Dispatchers.IO) {
-        val rawRecs = geminiService.generateRecommendations(history, favorites)
+        val rawRecs = geminiService.generateRecommendations(searchHistory, history, favorites)
         val result = mutableListOf<DiscoveryRecommendation>()
 
         for (rec in rawRecs) {
@@ -1284,10 +1641,60 @@ class MusicRepository(
                     song = resolvedSong,
                     aiReason = rec.reason,
                     vibeTag = rec.vibe,
-                    matchPercentage = rec.matchPercentage
+                    matchPercentage = rec.matchPercentage,
+                    sourceContext = rec.sourceContext,
+                    isFromSearch = rec.isFromSearch,
+                    sourceTitle = rec.sourceTitle
                 )
             )
         }
         result
+    }
+
+    /**
+     * Generates an expertly sequenced playlist based on mood and activity,
+     * resolving all tracks with playable audio and metadata.
+     */
+    suspend fun generateMoodPlaylistSequence(
+        mood: String,
+        activity: String,
+        customPrompt: String = "",
+        userTasteSongs: List<Song> = emptyList()
+    ): GeminiMoodPlaylist = withContext(Dispatchers.IO) {
+        val rawPlaylist = geminiMoodService.generateMoodPlaylistSequence(mood, activity, customPrompt, userTasteSongs)
+        val resolvedTracks = mutableListOf<GeminiTrackSequence>()
+
+        for (track in rawPlaylist.tracks) {
+            val existing = songCache.values.firstOrNull {
+                it.title.contains(track.title, ignoreCase = true) || track.title.contains(it.title, ignoreCase = true)
+            } ?: getTrendingHits().firstOrNull {
+                it.title.contains(track.title, ignoreCase = true) || track.title.contains(it.title, ignoreCase = true)
+            }
+
+            val resolvedSong = if (existing != null) {
+                existing
+            } else {
+                val searchRes = try {
+                    searchSongs("${track.title} ${track.artist}")
+                } catch (e: Exception) {
+                    emptyList()
+                }
+                searchRes.firstOrNull() ?: Song(
+                    id = kotlin.math.abs((track.title + track.artist).hashCode().toLong()),
+                    title = track.title,
+                    artist = track.artist,
+                    album = "${track.title} - Single",
+                    artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b5/92/bb/b592bb72-52e3-e756-9b26-9f56d08f47ab/16UMGIM67864.rgb.jpg/600x600bb.jpg",
+                    previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/67/10/16/67101606-3869-ca44-6c03-e13d6322cb51/mzaf_1135399237022217274.plus.aac.p.m4a",
+                    genre = rawPlaylist.mood
+                )
+            }
+
+            resolvedTracks.add(
+                track.copy(resolvedSong = resolvedSong)
+            )
+        }
+
+        rawPlaylist.copy(tracks = resolvedTracks)
     }
 }

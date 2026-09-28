@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,6 +67,7 @@ fun MiniPlayer(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val effectiveDuration = if (durationMs > 0) durationMs else 30000L
+    val view = LocalView.current
 
     AnimatedVisibility(
         visible = song != null,
@@ -144,7 +146,10 @@ fun MiniPlayer(
                     // Previous button (if provided)
                     if (onPrevious != null) {
                         IconButton(
-                            onClick = onPrevious,
+                            onClick = {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onPrevious()
+                            },
                             modifier = Modifier.size(36.dp).testTag("mini_player_prev")
                         ) {
                             Icon(
@@ -167,7 +172,10 @@ fun MiniPlayer(
                         )
                     } else {
                         IconButton(
-                            onClick = onTogglePlayPause,
+                            onClick = {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onTogglePlayPause()
+                            },
                             modifier = Modifier.size(40.dp).testTag("mini_player_play_pause")
                         ) {
                             Icon(
@@ -181,7 +189,10 @@ fun MiniPlayer(
 
                     // Next button
                     IconButton(
-                        onClick = onNext,
+                        onClick = {
+                            view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                            onNext()
+                        },
                         modifier = Modifier.size(36.dp).testTag("mini_player_next")
                     ) {
                         Icon(
@@ -195,7 +206,10 @@ fun MiniPlayer(
                     // Queue Drawer button accessible directly from the playback bar
                     if (onOpenQueue != null) {
                         IconButton(
-                            onClick = onOpenQueue,
+                            onClick = {
+                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                onOpenQueue()
+                            },
                             modifier = Modifier
                                 .size(36.dp)
                                 .testTag("playback_bar_queue_button")

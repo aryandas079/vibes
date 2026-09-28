@@ -87,7 +87,10 @@ data class DiscoveryRecommendation(
     val song: Song,
     val aiReason: String,
     val vibeTag: String,
-    val matchPercentage: Int = 95
+    val matchPercentage: Int = 95,
+    val sourceContext: String = "Listening History",
+    val isFromSearch: Boolean = false,
+    val sourceTitle: String = ""
 )
 
 data class GenreChartData(

@@ -11,6 +11,8 @@ import com.example.model.Album
 import com.example.model.AppThemeMode
 import com.example.model.Artist
 import com.example.model.DiscoveryRecommendation
+import com.example.model.GeminiMoodPlaylist
+import com.example.model.GeminiTrackSequence
 import com.example.model.GenreChartData
 import com.example.model.HistoryItem
 import com.example.model.LyricsData
@@ -36,6 +38,13 @@ enum class LyricsDisplayMode {
     ORIGINAL,
     BILINGUAL,
     TRANSLATED
+}
+
+sealed interface MoodPlaylistUiState {
+    object Idle : MoodPlaylistUiState
+    data class Generating(val step: String) : MoodPlaylistUiState
+    data class Success(val playlist: GeminiMoodPlaylist) : MoodPlaylistUiState
+    data class Error(val message: String) : MoodPlaylistUiState
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -148,6 +157,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isDiscoveryLoading = MutableStateFlow(false)
     val isDiscoveryLoading: StateFlow<Boolean> = _isDiscoveryLoading.asStateFlow()
 
+    // Gemini Mood & Activity Track Sequence Generator
+    private val _moodPlaylistState = MutableStateFlow<MoodPlaylistUiState>(MoodPlaylistUiState.Idle)
+    val moodPlaylistState: StateFlow<MoodPlaylistUiState> = _moodPlaylistState.asStateFlow()
+
     private val _selectedCategory = MutableStateFlow("All")
     val selectedCategory: StateFlow<String> = _selectedCategory.asStateFlow()
 
@@ -191,6 +204,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _searchHistory = MutableStateFlow<List<String>>(
+        listOf("The Weeknd", "Taylor Swift", "Sabrina Carpenter", "Billie Eilish")
+    )
+    val searchHistory: StateFlow<List<String>> = _searchHistory.asStateFlow()
+
+    fun recordSearchQuery(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.length >= 2) {
+            val current = _searchHistory.value.toMutableList()
+            current.removeAll { it.equals(trimmed, ignoreCase = true) }
+            current.add(0, trimmed)
+            _searchHistory.value = current.take(12)
+            refreshGeminiDiscovery()
+        }
+    }
+
     private val _searchResults = MutableStateFlow<List<Song>>(emptyList())
     val searchResults: StateFlow<List<Song>> = _searchResults.asStateFlow()
 
@@ -205,6 +234,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _matchedAlbums = MutableStateFlow<List<Album>>(emptyList())
     val matchedAlbums: StateFlow<List<Album>> = _matchedAlbums.asStateFlow()
+
+    private val _featuredAlbums = MutableStateFlow<List<Album>>(emptyList())
+    val featuredAlbums: StateFlow<List<Album>> = _featuredAlbums.asStateFlow()
+
+    private val _selectedAlbum = MutableStateFlow<Album?>(null)
+    val selectedAlbum: StateFlow<Album?> = _selectedAlbum.asStateFlow()
+
+    fun selectAlbum(album: Album) {
+        _selectedAlbum.value = album
+    }
+
+    fun clearSelectedAlbum() {
+        _selectedAlbum.value = null
+    }
+
+    fun playAlbum(album: Album) {
+        if (album.tracks.isNotEmpty()) {
+            playerManager.playSong(album.tracks.first(), album.tracks)
+        }
+    }
+
+    fun shuffleAlbum(album: Album) {
+        if (album.tracks.isNotEmpty()) {
+            val shuffled = album.tracks.shuffled()
+            playerManager.playSong(shuffled.first(), shuffled)
+        }
+    }
 
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
@@ -345,6 +401,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isDiscoveryLoading.value = true
             try {
                 val discovery = repository.getGeminiDiscoveryRecommendations(
+                    searchHistory = _searchHistory.value,
                     history = historyItems.value,
                     favorites = favoriteSongs.value
                 )
@@ -357,6 +414,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun generateMoodPlaylist(mood: String, activity: String, customPrompt: String = "") {
+        viewModelScope.launch {
+            _moodPlaylistState.value = MoodPlaylistUiState.Generating("Consulting Gemini 3.5 Flash...")
+            delay(350)
+            _moodPlaylistState.value = MoodPlaylistUiState.Generating("Calibrating emotional arc & BPM progression...")
+            delay(350)
+            _moodPlaylistState.value = MoodPlaylistUiState.Generating("Sequencing harmonic transitions...")
+            try {
+                val userSongs = (historyItems.value.map { it.song } + favoriteSongs.value).distinctBy { it.id }
+                val playlist = repository.generateMoodPlaylistSequence(
+                    mood = mood,
+                    activity = activity,
+                    customPrompt = customPrompt,
+                    userTasteSongs = userSongs
+                )
+                _moodPlaylistState.value = MoodPlaylistUiState.Success(playlist)
+            } catch (e: Exception) {
+                _moodPlaylistState.value = MoodPlaylistUiState.Error(e.message ?: "Failed to generate playlist sequence")
+            }
+        }
+    }
+
+    fun playMoodPlaylistSequence(playlist: GeminiMoodPlaylist) {
+        val playableSongs = playlist.tracks.mapNotNull { it.resolvedSong }
+        if (playableSongs.isNotEmpty()) {
+            playerManager.playSong(playableSongs.first(), playableSongs)
+        }
+    }
+
+    fun saveMoodPlaylistToLibrary(playlist: GeminiMoodPlaylist, onSaved: () -> Unit = {}) {
+        viewModelScope.launch {
+            val coverUrl = playlist.tracks.firstOrNull()?.resolvedSong?.artworkUrl ?: ""
+            val playlistId = repository.createPlaylist(
+                name = playlist.title,
+                description = "${playlist.narrativeArc} (${playlist.mood} • ${playlist.activity})",
+                coverUrl = coverUrl
+            )
+            for (track in playlist.tracks) {
+                track.resolvedSong?.let { song ->
+                    repository.addSongToPlaylist(playlistId, song)
+                }
+            }
+            onSaved()
+        }
+    }
+
+    fun clearMoodPlaylistState() {
+        _moodPlaylistState.value = MoodPlaylistUiState.Idle
+    }
+
     fun loadHomeScreenData() {
         viewModelScope.launch {
             _isHomescreenLoading.value = true
@@ -366,6 +473,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _trendingSongs.value = trending
             _categorySongs.value = trending
             _featuredSong.value = trending.firstOrNull()
+
+            _featuredAlbums.value = repository.getFeaturedAlbums()
 
             val recs = repository.getRecommendations(historyItems.value.map { it.song })
             _recommendedSongs.value = recs
@@ -472,8 +581,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val results = repository.searchSongs(query)
             _searchResults.value = results
 
-            // 1. Detect and construct Matched Artist Cards with Top 3 Most Played Songs
             val trimmed = query.trim()
+            if (trimmed.length >= 3) {
+                val current = _searchHistory.value.toMutableList()
+                current.removeAll { it.equals(trimmed, ignoreCase = true) }
+                current.add(0, trimmed)
+                _searchHistory.value = current.take(12)
+            }
             val allTopArtists = repository.getTopArtists()
             val directTopMatches = allTopArtists.filter {
                 it.name.contains(trimmed, ignoreCase = true) || trimmed.contains(it.name, ignoreCase = true)
@@ -762,11 +876,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun quickSignInAsAryan() {
+    fun quickSignInAsAryan(email: String = "aryandas.dev@gmail.com", name: String = "Aryan Das") {
         viewModelScope.launch {
             _isAuthLoading.value = true
             _authErrorMessage.value = null
-            val result = authManager.quickSignInAsAryan()
+            val result = authManager.quickSignInAsAryan(email, name)
             result.onSuccess { session ->
                 _isAuthLoading.value = false
                 repository.activeUserId = session.uid

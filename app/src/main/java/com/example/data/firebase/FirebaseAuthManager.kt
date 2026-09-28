@@ -113,7 +113,7 @@ class FirebaseAuthManager(private val context: Context) {
             val googleIdOption = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setAutoSelectEnabled(false)
-                .setServerClientId("904712940375-musica-applet.apps.googleusercontent.com")
+                .setServerClientId("513365363362-qhdu6pv5j0u7vgv0j0nb18n34vs4eo1v.apps.googleusercontent.com")
                 .build()
 
             val request = GetCredentialRequest.Builder()

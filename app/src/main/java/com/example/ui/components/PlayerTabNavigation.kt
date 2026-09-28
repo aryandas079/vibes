@@ -62,9 +62,9 @@ fun PlayerTabNavigation(
 
     Box(
         modifier = modifier
-            .height(44.dp)
-            .liquidGlassEffect(shape = RoundedCornerShape(22.dp), elevation = 4.dp)
-            .padding(3.dp)
+            .height(36.dp)
+            .liquidGlassEffect(shape = RoundedCornerShape(18.dp), elevation = 3.dp)
+            .padding(2.5.dp)
             .testTag("player_tab_navigation_container")
     ) {
         Row(
@@ -89,7 +89,7 @@ fun PlayerTabNavigation(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(15.dp))
                         .background(tabBgColor)
                         .clickable(
                             interactionSource = interactionSource,
@@ -108,14 +108,14 @@ fun PlayerTabNavigation(
                             imageVector = tab.icon,
                             contentDescription = tab.label,
                             tint = tabTextColor,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp)
                         )
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
 
                         Text(
                             text = tab.label,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = tabTextColor,
                             maxLines = 1

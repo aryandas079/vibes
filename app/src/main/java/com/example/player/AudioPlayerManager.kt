@@ -23,6 +23,70 @@ class AudioPlayerManager(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private var progressJob: Job? = null
 
+    private var androidEqualizer: android.media.audiofx.Equalizer? = null
+    var isEqualizerEnabled: Boolean = true
+        set(value) {
+            field = value
+            androidEqualizer?.enabled = value
+        }
+
+    fun getNumberOfBands(): Short {
+        return androidEqualizer?.numberOfBands ?: 5
+    }
+
+    fun getBandLevelRange(): ShortArray {
+        return androidEqualizer?.bandLevelRange ?: shortArrayOf(-1500, 1500)
+    }
+
+    fun getBandLevel(band: Short): Short {
+        return try {
+            androidEqualizer?.getBandLevel(band) ?: 0
+        } catch (e: Exception) {
+            0
+        }
+    }
+
+    fun setBandLevel(band: Short, level: Short) {
+        try {
+            androidEqualizer?.setBandLevel(band, level)
+        } catch (e: Exception) {
+            // Ignored
+        }
+    }
+
+    fun getCenterFreq(band: Short): Int {
+        return try {
+            androidEqualizer?.getCenterFreq(band) ?: 1000
+        } catch (e: Exception) {
+            1000
+        }
+    }
+
+    fun getPresetNames(): List<String> {
+        val eq = androidEqualizer ?: return listOf("Flat", "Rock", "Pop", "Jazz", "Classical", "Bass Boost")
+        val count = eq.numberOfPresets
+        val list = mutableListOf<String>()
+        for (i in 0 until count) {
+            try {
+                list.add(eq.getPresetName(i.toShort()))
+            } catch (e: Exception) {
+                list.add("Preset $i")
+            }
+        }
+        if (list.isEmpty()) {
+            return listOf("Flat", "Rock", "Pop", "Jazz", "Classical", "Bass Boost")
+        }
+        return list
+    }
+
+    fun usePreset(preset: Short) {
+        try {
+            androidEqualizer?.usePreset(preset)
+        } catch (e: Exception) {
+            // Ignored
+        }
+    }
+
     private val _currentSong = MutableStateFlow<Song?>(null)
     val currentSong: StateFlow<Song?> = _currentSong.asStateFlow()
 
@@ -111,6 +175,15 @@ class AudioPlayerManager(private val context: Context) {
                     watchdogJob?.cancel()
                     _isBuffering.value = false
                     _durationMs.value = mp.duration.toLong().coerceAtLeast(30000L)
+                    try {
+                        val sessionId = mp.audioSessionId
+                        androidEqualizer?.release()
+                        androidEqualizer = android.media.audiofx.Equalizer(0, sessionId).apply {
+                            enabled = isEqualizerEnabled
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                     try {
                         mp.start()
                         _isPlaying.value = true
@@ -407,6 +480,13 @@ class AudioPlayerManager(private val context: Context) {
 
     private fun releaseMediaPlayer() {
         stopProgressTicker()
+        try {
+            androidEqualizer?.release()
+        } catch (e: Exception) {
+            // Ignored
+        }
+        androidEqualizer = null
+
         mediaPlayer?.apply {
             try {
                 if (isPlaying) stop()

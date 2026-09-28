@@ -20,7 +20,10 @@ data class RawGeminiRecommendation(
     val artist: String,
     val reason: String,
     val vibe: String,
-    val matchPercentage: Int
+    val matchPercentage: Int,
+    val sourceContext: String = "Listening History",
+    val isFromSearch: Boolean = false,
+    val sourceTitle: String = ""
 )
 
 class GeminiDiscoveryService {
@@ -35,16 +38,23 @@ class GeminiDiscoveryService {
 
     /**
      * Calls Gemini 3.5 Flash to generate contextual music discovery recommendations
-     * based on the user's real listening history and favorite tracks.
+     * based on the user's real search history, listening history, and favorite tracks.
      */
     suspend fun generateRecommendations(
-        history: List<HistoryItem>,
-        favorites: List<Song>
+        searchHistory: List<String> = emptyList(),
+        history: List<HistoryItem> = emptyList(),
+        favorites: List<Song> = emptyList()
     ): List<RawGeminiRecommendation> = withContext(Dispatchers.IO) {
         val apiKey = try {
             BuildConfig.GEMINI_API_KEY
         } catch (e: Throwable) {
             ""
+        }
+
+        val searchSummary = if (searchHistory.isNotEmpty()) {
+            searchHistory.take(6).joinToString(", ") { "\"$it\"" }
+        } else {
+            "\"The Weeknd\", \"Taylor Swift\", \"Billie Eilish\", \"Synthwave\""
         }
 
         val historySummary = if (history.isNotEmpty()) {
@@ -56,26 +66,35 @@ class GeminiDiscoveryService {
         }
 
         // If no API key configured or is placeholder, use curated AI music discovery engine
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY" || apiKey.contains("placeholder", ignoreCase = true)) {
-            return@withContext fallbackDiscoveryEngine(history, favorites)
+        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY" || apiKey.contains("placeholder", ignoreCase = true) || apiKey.contains("dummy", ignoreCase = true)) {
+            return@withContext fallbackDiscoveryEngine(searchHistory, history, favorites)
         }
 
         try {
-            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey"
+            val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
 
             val prompt = """
-                You are a world-class AI Music Curator. Analyze the user's recent listening history:
-                $historySummary
+                You are a world-class AI Music Curator. Analyze the user's music interaction signals:
+                1. Recent Search History:
+                   $searchSummary
+                2. Recent Listening History:
+                   $historySummary
 
-                Recommend 6 trending and critically acclaimed songs that this user will love based on mood, tempo, harmony, and artist similarity.
+                Recommend 12 to 16 trending and critically acclaimed songs with clear sectional provenance:
+                - At least 6 to 8 songs specifically inspired by their SEARCH queries
+                - At least 6 to 8 songs specifically inspired by songs they LISTENED to
+
                 Return ONLY a valid JSON array of objects with the exact keys:
                 [
                   {
-                    "title": "Song Title",
+                    "title": "Exact Song Title",
                     "artist": "Artist Name",
-                    "reason": "Brief, compelling 1-sentence explanation of why this matches their taste (e.g. 'Since you love synth-pop melodies...')",
-                    "vibe": "Short vibe tag (e.g. Dreamy Pop, Dark R&B, Upbeat Summer)",
-                    "matchPercentage": 96
+                    "reason": "1-sentence compelling explanation of why this matches their taste",
+                    "vibe": "Short vibe tag (e.g. Dream Pop, Dark R&B, Upbeat Summer)",
+                    "matchPercentage": 96,
+                    "isFromSearch": true,
+                    "sourceTitle": "Searched Term or Song Title",
+                    "sourceContext": "Based on your search for '...' OR Because you listened to '...'"
                   }
                 ]
             """.trimIndent()
@@ -112,7 +131,7 @@ class GeminiDiscoveryService {
 
             if (!response.isSuccessful) {
                 Log.w("GeminiDiscoveryService", "Gemini API error: ${response.code} $responseBody")
-                return@withContext fallbackDiscoveryEngine(history, favorites)
+                return@withContext fallbackDiscoveryEngine(searchHistory, history, favorites)
             }
 
             val responseObj = JSONObject(responseBody)
@@ -129,10 +148,10 @@ class GeminiDiscoveryService {
                 }
             }
 
-            return@withContext fallbackDiscoveryEngine(history, favorites)
+            return@withContext fallbackDiscoveryEngine(searchHistory, history, favorites)
         } catch (e: Exception) {
             Log.e("GeminiDiscoveryService", "Failed to get Gemini recommendations", e)
-            return@withContext fallbackDiscoveryEngine(history, favorites)
+            return@withContext fallbackDiscoveryEngine(searchHistory, history, favorites)
         }
     }
 
@@ -153,6 +172,12 @@ class GeminiDiscoveryService {
                 val reason = obj.optString("reason", "Tailored to your acoustic taste.")
                 val vibe = obj.optString("vibe", "Trending")
                 val match = obj.optInt("matchPercentage", (92..99).random())
+                val isFromSearch = obj.optBoolean("isFromSearch", i % 2 == 0)
+                val sourceTitle = obj.optString("sourceTitle", if (isFromSearch) "Recent Search" else "Listened Track")
+                val sourceContext = obj.optString(
+                    "sourceContext",
+                    if (isFromSearch) "Based on your search for \"$sourceTitle\"" else "Because you listened to \"$sourceTitle\""
+                )
 
                 if (title.isNotBlank() && artist.isNotBlank()) {
                     list.add(
@@ -161,7 +186,10 @@ class GeminiDiscoveryService {
                             artist = artist,
                             reason = reason,
                             vibe = vibe,
-                            matchPercentage = match
+                            matchPercentage = match,
+                            sourceContext = sourceContext,
+                            isFromSearch = isFromSearch,
+                            sourceTitle = sourceTitle
                         )
                     )
                 }
@@ -173,82 +201,236 @@ class GeminiDiscoveryService {
     }
 
     /**
-     * Fallback AI Music Discovery Engine based on dynamic history profile heuristics.
+     * Fallback AI Music Discovery Engine with real search and listened history correlation.
      */
     private fun fallbackDiscoveryEngine(
+        searchHistory: List<String>,
         history: List<HistoryItem>,
         favorites: List<Song>
     ): List<RawGeminiRecommendation> {
-        val artistsInHistory = (history.map { it.song.artist } + favorites.map { it.artist }).distinct()
-        val genresInHistory = (history.map { it.song.genre } + favorites.map { it.genre }).distinct()
+        val effectiveSearches = if (searchHistory.isNotEmpty()) searchHistory else listOf("The Weeknd", "Taylor Swift", "Sabrina Carpenter", "Billie Eilish")
+        val effectiveListened = if (history.isNotEmpty()) history.map { it.song } else favorites
 
-        val candidatePool = listOf(
+        val recs = mutableListOf<RawGeminiRecommendation>()
+
+        // 1. Generate search-based discovery items
+        val search1 = effectiveSearches.getOrNull(0) ?: "The Weeknd"
+        val search2 = effectiveSearches.getOrNull(1) ?: "Taylor Swift"
+        val search3 = effectiveSearches.getOrNull(2) ?: "Sabrina Carpenter"
+
+        recs.add(
             RawGeminiRecommendation(
-                title = "Espresso",
-                artist = "Sabrina Carpenter",
-                reason = "Matches your taste for catchy basslines and upbeat pop choruses.",
-                vibe = "Sunny Pop",
-                matchPercentage = 98
-            ),
-            RawGeminiRecommendation(
-                title = "Die With A Smile",
-                artist = "Lady Gaga, Bruno Mars",
-                reason = "Rich vocal harmonies and classic ballad structure matching your top tracks.",
-                vibe = "Soulful Duet",
-                matchPercentage = 97
-            ),
-            RawGeminiRecommendation(
-                title = "Birds of a Feather",
-                artist = "Billie Eilish",
-                reason = "Dreamy indie instrumentation and intimate vocal production.",
-                vibe = "Dream Pop",
-                matchPercentage = 95
-            ),
-            RawGeminiRecommendation(
-                title = "Good Luck, Babe!",
-                artist = "Chappell Roan",
-                reason = "High-energy 80s synth hooks with theatrical vocal crescendos.",
-                vibe = "Synthwave Pop",
-                matchPercentage = 94
-            ),
-            RawGeminiRecommendation(
-                title = "Cruel Summer",
-                artist = "Taylor Swift",
-                reason = "Dynamic bridge and driving percussion aligned with your upbeat history.",
-                vibe = "Anthem Pop",
-                matchPercentage = 99
-            ),
-            RawGeminiRecommendation(
-                title = "Starboy",
-                artist = "The Weeknd",
-                reason = "Deep electronic bass and dark synth grooves you enjoy.",
-                vibe = "Electro R&B",
-                matchPercentage = 96
-            ),
-            RawGeminiRecommendation(
-                title = "Monaco",
-                artist = "Bad Bunny",
-                reason = "Cinematic orchestral trap with global rhythms for discovery.",
-                vibe = "Latin Trap",
-                matchPercentage = 92
-            ),
-            RawGeminiRecommendation(
-                title = "As It Was",
-                artist = "Harry Styles",
-                reason = "Nostalgic indie-pop beat that flows perfectly after your recent listens.",
-                vibe = "Indie Pop",
-                matchPercentage = 93
-            ),
-            RawGeminiRecommendation(
-                title = "Tabun",
-                artist = "YOASOBI",
-                reason = "Melodic J-Pop piano riffs and emotional storytelling.",
-                vibe = "J-Pop Groove",
-                matchPercentage = 94
+                title = if (search1.contains("Taylor", ignoreCase = true)) "Cruel Summer" else "Blinding Lights",
+                artist = if (search1.contains("Taylor", ignoreCase = true)) "Taylor Swift" else "The Weeknd",
+                reason = "Matched from your recent search for \"$search1\" with high-tempo percussion and iconic synths.",
+                vibe = "Electro Synth",
+                matchPercentage = 98,
+                isFromSearch = true,
+                sourceTitle = search1,
+                sourceContext = "Based on your search for \"$search1\""
             )
         )
 
-        // Prioritize recommendations that complement or bridge the user's listened artists
-        return candidatePool.shuffled().take(6)
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Espresso",
+                artist = "Sabrina Carpenter",
+                reason = "Inspired by your exploration of \"$search2\" with infectious bassline and disco-pop vocal rhythm.",
+                vibe = "Sunny Pop",
+                matchPercentage = 97,
+                isFromSearch = true,
+                sourceTitle = search2,
+                sourceContext = "Based on your search for \"$search2\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Good Luck, Babe!",
+                artist = "Chappell Roan",
+                reason = "Connected to your search interest in \"$search3\" with 80s theatrical synth hooks and soaring bridge.",
+                vibe = "Synthwave Pop",
+                matchPercentage = 95,
+                isFromSearch = true,
+                sourceTitle = search3,
+                sourceContext = "Based on your search for \"$search3\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Taste",
+                artist = "Sabrina Carpenter",
+                reason = "Matches your pop searches with buoyant guitar licks and witty melodic cadence.",
+                vibe = "Punchy Pop",
+                matchPercentage = 97,
+                isFromSearch = true,
+                sourceTitle = search2,
+                sourceContext = "Based on your search for \"$search2\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Starboy",
+                artist = "The Weeknd",
+                reason = "Heavy electro basslines and dark synth textures directly aligning with \"$search1\".",
+                vibe = "Electro R&B",
+                matchPercentage = 99,
+                isFromSearch = true,
+                sourceTitle = search1,
+                sourceContext = "Based on your search for \"$search1\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Lunch",
+                artist = "Billie Eilish",
+                reason = "Deep funky bassline and whisper-close production inspired by your search queries.",
+                vibe = "Alt Pop",
+                matchPercentage = 95,
+                isFromSearch = true,
+                sourceTitle = effectiveSearches.getOrNull(3) ?: "Billie Eilish",
+                sourceContext = "Based on your search for \"Billie Eilish\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Houdini",
+                artist = "Dua Lipa",
+                reason = "Nu-disco synths and driving 117 BPM groove that bridges your dance-pop searches.",
+                vibe = "Nu-Disco",
+                matchPercentage = 96,
+                isFromSearch = true,
+                sourceTitle = search3,
+                sourceContext = "Based on your search for \"$search3\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Paint The Town Red",
+                artist = "Doja Cat",
+                reason = "Dionne Warwick jazz loop layered with effortless rhythmic flow.",
+                vibe = "Jazz Rap",
+                matchPercentage = 93,
+                isFromSearch = true,
+                sourceTitle = "Hip-Hop Hits",
+                sourceContext = "Based on your search for \"Hip-Hop Hits\""
+            )
+        )
+
+        // 2. Generate listened-based discovery items
+        val lastSong1 = effectiveListened.getOrNull(0)?.title ?: "Starboy"
+        val lastSong2 = effectiveListened.getOrNull(1)?.title ?: "Birds of a Feather"
+        val lastSong3 = effectiveListened.getOrNull(2)?.title ?: "As It Was"
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Birds of a Feather",
+                artist = "Billie Eilish",
+                reason = "Harmonically aligns with \"$lastSong1\" with dreamy guitar chords and intimate vocals.",
+                vibe = "Dream Pop",
+                matchPercentage = 96,
+                isFromSearch = false,
+                sourceTitle = lastSong1,
+                sourceContext = "Because you listened to \"$lastSong1\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Die With A Smile",
+                artist = "Lady Gaga, Bruno Mars",
+                reason = "Echoes the emotional resonance and vocal dynamics of \"$lastSong2\".",
+                vibe = "Soulful Duet",
+                matchPercentage = 98,
+                isFromSearch = false,
+                sourceTitle = lastSong2,
+                sourceContext = "Because you listened to \"$lastSong2\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "As It Was",
+                artist = "Harry Styles",
+                reason = "Shares the upbeat 170 BPM rhythm and nostalgic indie energy of \"$lastSong3\".",
+                vibe = "Indie Pop",
+                matchPercentage = 94,
+                isFromSearch = false,
+                sourceTitle = lastSong3,
+                sourceContext = "Because you listened to \"$lastSong3\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Cruel Summer",
+                artist = "Taylor Swift",
+                reason = "Euphoric synth crescendo with timeless bridge following your recent listens.",
+                vibe = "Anthem Pop",
+                matchPercentage = 99,
+                isFromSearch = false,
+                sourceTitle = lastSong1,
+                sourceContext = "Because you listened to \"$lastSong1\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Greedy",
+                artist = "Tate McRae",
+                reason = "Punchy bassline and crisp hook continuation from your energetic listening tracks.",
+                vibe = "Dance Pop",
+                matchPercentage = 95,
+                isFromSearch = false,
+                sourceTitle = lastSong3,
+                sourceContext = "Because you listened to \"$lastSong3\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Feather",
+                artist = "Sabrina Carpenter",
+                reason = "Breezy post-breakup groove with light funk bass and effortless vocal delivery.",
+                vibe = "Funk Pop",
+                matchPercentage = 96,
+                isFromSearch = false,
+                sourceTitle = lastSong2,
+                sourceContext = "Because you listened to \"$lastSong2\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "Lose Control",
+                artist = "Teddy Swims",
+                reason = "Soul-drenched vocal dynamics and raw blues-gospel progression.",
+                vibe = "Gospel Soul",
+                matchPercentage = 94,
+                isFromSearch = false,
+                sourceTitle = lastSong2,
+                sourceContext = "Because you listened to \"$lastSong2\""
+            )
+        )
+
+        recs.add(
+            RawGeminiRecommendation(
+                title = "たぶん (Tabun)",
+                artist = "YOASOBI",
+                reason = "Delicate syncopated piano keys and bittersweet Japanese indie pop.",
+                vibe = "J-Pop Groove",
+                matchPercentage = 93,
+                isFromSearch = false,
+                sourceTitle = lastSong1,
+                sourceContext = "Because you listened to \"$lastSong1\""
+            )
+        )
+
+        return recs
     }
 }

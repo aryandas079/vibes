@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -20,9 +23,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -30,12 +35,14 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -47,13 +54,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.model.Album
+import com.example.ui.components.AlbumDetailBottomSheet
 import com.example.ui.components.AuthBottomSheet
+import com.example.ui.components.EqualizerBottomSheet
+import com.example.ui.components.GeminiMoodPlaylistSheet
 import com.example.ui.components.MiniPlayer
 import com.example.ui.components.PlayerTab
 import com.example.ui.components.QueueDrawer
@@ -123,6 +136,7 @@ fun MusicaApp(
     val favoriteSongs by viewModel.favoriteSongs.collectAsStateWithLifecycle()
     val followedArtists by viewModel.followedArtists.collectAsStateWithLifecycle()
     val historyItems by viewModel.historyItems.collectAsStateWithLifecycle()
+    val featuredAlbums by viewModel.featuredAlbums.collectAsStateWithLifecycle()
 
     val deviceSongs by viewModel.deviceSongs.collectAsStateWithLifecycle()
     val isScanningDeviceFiles by viewModel.isScanningDeviceFiles.collectAsStateWithLifecycle()
@@ -147,9 +161,15 @@ fun MusicaApp(
     val authErrorMessage by viewModel.authErrorMessage.collectAsStateWithLifecycle()
 
     var showAuthSheet by remember { mutableStateOf(false) }
+    var showEqualizerSheet by remember { mutableStateOf(false) }
+    var showMoodPlaylistSheet by remember { mutableStateOf(false) }
+    var selectedAlbumForSheet by remember { mutableStateOf<Album?>(null) }
     val authSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val spotifySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val moodPlaylistSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val albumSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val moodPlaylistState by viewModel.moodPlaylistState.collectAsStateWithLifecycle()
 
     val upcomingCount = if (queueCurrentIndex >= 0 && queueCurrentIndex < currentQueue.size - 1) {
         currentQueue.size - (queueCurrentIndex + 1)
@@ -213,88 +233,83 @@ fun MusicaApp(
                         }
                     }
 
-                    // Bottom Navigation Bar with Glass/Theme adaptation
+                    // Completely Unique Floating Neon Capsule Command Dock (Non-standard layout)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .liquidGlassEffect(
-                                shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                                elevation = 10.dp
-                            )
+                            .padding(horizontal = 24.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        NavigationBar(
-                            containerColor = Color.Transparent,
-                            contentColor = colorScheme.onSurface,
-                            tonalElevation = 0.dp
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(64.dp)
+                                .border(1.5.dp, Color(0xFF8B5CF6).copy(alpha = 0.6f), RoundedCornerShape(32.dp)),
+                            shape = RoundedCornerShape(32.dp),
+                            color = Color(0xFF12101F).copy(alpha = 0.95f),
+                            tonalElevation = 12.dp
                         ) {
-                            NavigationBarItem(
-                                selected = selectedTab == 0 && viewingArtistName == null && viewingGenre == null,
-                                onClick = {
-                                    selectedTab = 0
-                                    viewingArtistName = null
-                                    viewingGenre = null
-                                },
-                                icon = {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 24.dp),
+                                horizontalArrangement = Arrangement.SpaceAround,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Nexus Tab (Home)
+                                val isNexusSelected = selectedTab == 0 && viewingArtistName == null && viewingGenre == null
+                                IconButton(
+                                    onClick = {
+                                        selectedTab = 0
+                                        viewingArtistName = null
+                                        viewingGenre = null
+                                    },
+                                    modifier = Modifier.size(44.dp).testTag("nav_nexus_button")
+                                ) {
                                     Icon(
-                                        imageVector = if (selectedTab == 0 && viewingArtistName == null && viewingGenre == null) Icons.Filled.Home else Icons.Outlined.Home,
-                                        contentDescription = "Discover"
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = "Nexus",
+                                        tint = if (isNexusSelected) Color(0xFFC084FC) else Color(0xFF8B8F9F),
+                                        modifier = Modifier.size(24.dp)
                                     )
-                                },
-                                label = { Text("Discover", fontSize = 11.sp) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = colorScheme.primary,
-                                    selectedTextColor = colorScheme.primary,
-                                    indicatorColor = colorScheme.primary.copy(alpha = 0.15f),
-                                    unselectedIconColor = colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = colorScheme.onSurfaceVariant
-                                )
-                            )
+                                }
 
-                            NavigationBarItem(
-                                selected = selectedTab == 1 && viewingArtistName == null && viewingGenre == null,
-                                onClick = {
-                                    selectedTab = 1
-                                    viewingArtistName = null
-                                    viewingGenre = null
-                                },
-                                icon = {
+                                // Radar Tab (Search)
+                                val isRadarSelected = selectedTab == 1 && viewingArtistName == null && viewingGenre == null
+                                IconButton(
+                                    onClick = {
+                                        selectedTab = 1
+                                        viewingArtistName = null
+                                        viewingGenre = null
+                                    },
+                                    modifier = Modifier.size(44.dp).testTag("nav_radar_button")
+                                ) {
                                     Icon(
-                                        imageVector = if (selectedTab == 1 && viewingArtistName == null && viewingGenre == null) Icons.Filled.Search else Icons.Outlined.Search,
-                                        contentDescription = "Search"
+                                        imageVector = Icons.Default.GraphicEq,
+                                        contentDescription = "Radar",
+                                        tint = if (isRadarSelected) Color(0xFF22D3EE) else Color(0xFF8B8F9F),
+                                        modifier = Modifier.size(24.dp)
                                     )
-                                },
-                                label = { Text("Search", fontSize = 11.sp) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = colorScheme.primary,
-                                    selectedTextColor = colorScheme.primary,
-                                    indicatorColor = colorScheme.primary.copy(alpha = 0.15f),
-                                    unselectedIconColor = colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = colorScheme.onSurfaceVariant
-                                )
-                            )
+                                }
 
-                            NavigationBarItem(
-                                selected = selectedTab == 2 && viewingArtistName == null && viewingGenre == null,
-                                onClick = {
-                                    selectedTab = 2
-                                    viewingArtistName = null
-                                    viewingGenre = null
-                                },
-                                icon = {
+                                // Vault Tab (Favorites)
+                                val isVaultSelected = selectedTab == 2 && viewingArtistName == null && viewingGenre == null
+                                IconButton(
+                                    onClick = {
+                                        selectedTab = 2
+                                        viewingArtistName = null
+                                        viewingGenre = null
+                                    },
+                                    modifier = Modifier.size(44.dp).testTag("nav_vault_button")
+                                ) {
                                     Icon(
-                                        imageVector = if (selectedTab == 2 && viewingArtistName == null && viewingGenre == null) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                        contentDescription = "Favorites"
+                                        imageVector = Icons.Default.Favorite,
+                                        contentDescription = "Vault",
+                                        tint = if (isVaultSelected) Color(0xFFF472B6) else Color(0xFF8B8F9F),
+                                        modifier = Modifier.size(24.dp)
                                     )
-                                },
-                                label = { Text("Favorites", fontSize = 11.sp) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = colorScheme.primary,
-                                    selectedTextColor = colorScheme.primary,
-                                    indicatorColor = colorScheme.primary.copy(alpha = 0.15f),
-                                    unselectedIconColor = colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = colorScheme.onSurfaceVariant
-                                )
-                            )
+                                }
+                            }
                         }
                     }
                 }
@@ -391,7 +406,10 @@ fun MusicaApp(
                             isOfflineMode = isOfflineMode,
                             isScanningDeviceFiles = isScanningDeviceFiles,
                             onSyncDeviceFiles = { viewModel.scanAndSyncDeviceAudio() },
-                            onToggleOfflineMode = { viewModel.toggleOfflineMode() }
+                            onToggleOfflineMode = { viewModel.toggleOfflineMode() },
+                            onOpenMoodPlaylistGenerator = { showMoodPlaylistSheet = true },
+                            featuredAlbums = featuredAlbums,
+                            onOpenAlbum = { album -> selectedAlbumForSheet = album }
                         )
 
                         1 -> SearchScreen(
@@ -436,7 +454,8 @@ fun MusicaApp(
                             },
                             deviceSongs = deviceSongs,
                             isScanningDeviceFiles = isScanningDeviceFiles,
-                            onSyncDeviceFiles = { viewModel.scanAndSyncDeviceAudio() }
+                            onSyncDeviceFiles = { viewModel.scanAndSyncDeviceAudio() },
+                            onOpenMoodPlaylistGenerator = { showMoodPlaylistSheet = true }
                         )
                     }
                 }
@@ -478,11 +497,70 @@ fun MusicaApp(
                 onOpenQueue = { viewModel.openQueueDrawer() },
                 onOpenSpotifyEmbed = { viewModel.toggleSpotifyEmbed(true) },
                 onOpenLyrics = { playerTab = PlayerTab.LYRICS },
+                onOpenEqualizer = { showEqualizerSheet = true },
                 onArtistClick = { artistName ->
                     viewModel.closeNowPlaying()
                     viewModel.loadArtistSongs(artistName)
                     viewingArtistName = artistName
                 }
+            )
+        }
+
+        if (showEqualizerSheet) {
+            EqualizerBottomSheet(
+                playerManager = viewModel.playerManager,
+                onDismiss = { showEqualizerSheet = false }
+            )
+        }
+
+        if (showMoodPlaylistSheet) {
+            GeminiMoodPlaylistSheet(
+                uiState = moodPlaylistState,
+                sheetState = moodPlaylistSheetState,
+                onDismiss = {
+                    showMoodPlaylistSheet = false
+                    viewModel.clearMoodPlaylistState()
+                },
+                onGeneratePlaylist = { mood, activity, customPrompt ->
+                    viewModel.generateMoodPlaylist(mood, activity, customPrompt)
+                },
+                onPlayPlaylistSequence = { playlist ->
+                    viewModel.playMoodPlaylistSequence(playlist)
+                },
+                onPlayTrack = { song ->
+                    viewModel.playSong(song)
+                },
+                onSaveToLibrary = { playlist ->
+                    viewModel.saveMoodPlaylistToLibrary(playlist)
+                }
+            )
+        }
+
+        if (selectedAlbumForSheet != null) {
+            AlbumDetailBottomSheet(
+                album = selectedAlbumForSheet!!,
+                isPlaying = isPlaying,
+                currentPlayingId = currentSong?.id,
+                favoriteSongIds = favoriteSongs.map { it.id }.toSet(),
+                onPlaySong = { song, tracklist ->
+                    viewModel.playSong(song, tracklist)
+                },
+                onPlayEntireAlbum = { album ->
+                    if (album.tracks.isNotEmpty()) {
+                        viewModel.playSong(album.tracks.first(), album.tracks)
+                    }
+                },
+                onShuffleAlbum = { album ->
+                    if (album.tracks.isNotEmpty()) {
+                        val shuffled = album.tracks.shuffled()
+                        viewModel.playSong(shuffled.first(), shuffled)
+                    }
+                },
+                onToggleFavorite = { song ->
+                    viewModel.toggleFavorite(song)
+                },
+                onDismiss = { selectedAlbumForSheet = null },
+                sheetState = albumSheetState
             )
         }
 
@@ -534,6 +612,9 @@ fun MusicaApp(
                 },
                 onSignInWithGoogle = { activity ->
                     viewModel.signInWithGoogle(activity)
+                },
+                onQuickSignInAsAryan = { email, name ->
+                    viewModel.quickSignInAsAryan(email, name)
                 },
                 onSignOut = {
                     viewModel.signOut()
