@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -80,7 +81,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import coil.compose.AsyncImage
 import com.example.model.Song
 import com.example.ui.theme.SpotifyGreen
 import com.example.ui.theme.StormBlackCard
@@ -105,6 +105,7 @@ fun HummingSearchSheet(
     onDismiss: () -> Unit,
     onPlaySong: (Song) -> Unit,
     onSearchSong: (String) -> Unit,
+    onSwitchToVoice: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -243,7 +244,51 @@ fun HummingSearchSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Mode Selector Row: Voice vs Humming
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(StormBlackElevated)
+                    .padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Transparent)
+                        .clickable { onSwitchToVoice?.invoke() }
+                        .padding(vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Mic, contentDescription = null, tint = WhiteSmokeMuted, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Voice Search", fontSize = 12.5.sp, fontWeight = FontWeight.Medium, color = WhiteSmokeMuted)
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SpotifyGreen.copy(alpha = 0.25f))
+                        .border(1.dp, SpotifyGreen.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                        .padding(vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.MusicNote, contentDescription = null, tint = SpotifyGreen, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Humming Search", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = WhiteSmoke)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
 
             when (val currentState = state) {
                 is HummingSearchState.Recording -> {
@@ -555,9 +600,10 @@ private fun HummingResultView(
                         .clip(RoundedCornerShape(12.dp))
                         .border(1.dp, WhiteSmoke.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                 ) {
-                    AsyncImage(
+                    MusicaImage(
                         model = result.song.artworkUrl,
                         contentDescription = result.song.title,
+                        titlePlaceholder = result.song.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )

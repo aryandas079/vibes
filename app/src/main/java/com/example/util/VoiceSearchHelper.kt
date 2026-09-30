@@ -87,7 +87,8 @@ class VoiceSearchHelper(private val context: Context) {
                             val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                             val bestMatch = matches?.firstOrNull()?.trim()
                             if (!bestMatch.isNullOrBlank()) {
-                                _state.value = VoiceSearchState.Success(bestMatch)
+                                val normalized = normalizeVoiceQuery(bestMatch)
+                                _state.value = VoiceSearchState.Success(normalized)
                             } else {
                                 _state.value = VoiceSearchState.Error("No match found. Please try again.")
                             }
@@ -158,6 +159,60 @@ class VoiceSearchHelper(private val context: Context) {
         mainHandler.post {
             stopListeningInternal()
             _state.value = VoiceSearchState.Idle
+        }
+    }
+
+    companion object {
+        fun normalizeVoiceQuery(raw: String): String {
+            var query = raw.trim()
+            val prefixes = listOf(
+                "can you please play the song",
+                "can you please play song",
+                "can you please play",
+                "could you please play",
+                "could you play",
+                "please play the song",
+                "please play song",
+                "please play",
+                "play the song",
+                "play songs by",
+                "play song by",
+                "play tracks by",
+                "play music by",
+                "play song",
+                "play",
+                "search for songs by",
+                "search for song",
+                "search for songs",
+                "search for music by",
+                "search for",
+                "search songs by",
+                "search",
+                "find songs by",
+                "find song by",
+                "find the song",
+                "find song",
+                "find",
+                "listen to song",
+                "listen to",
+                "put on the song",
+                "put on song",
+                "put on",
+                "look up song",
+                "look up"
+            )
+            for (prefix in prefixes) {
+                if (query.startsWith(prefix, ignoreCase = true)) {
+                    val stripped = query.substring(prefix.length).trim()
+                    if (stripped.isNotBlank()) {
+                        query = stripped
+                        break
+                    }
+                }
+            }
+            // Strip leading "by " if left over (e.g. from "play by Taylor Swift")
+            query = query.replace(Regex("^(by\\s+)", RegexOption.IGNORE_CASE), "").trim()
+            return query
         }
     }
 }

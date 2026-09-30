@@ -2,7 +2,6 @@ package com.example.ui.components
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -171,10 +170,6 @@ fun GeminiDiscoverySection(
         else activeCardIndex.coerceIn(0, filteredRecommendations.lastIndex)
     }
 
-    // Counting counts for badges
-    val searchCount = remember(recommendations) { recommendations.count { it.isFromSearch } }
-    val listenedCount = remember(recommendations) { recommendations.count { !it.isFromSearch } }
-
     val infiniteTransition = rememberInfiniteTransition(label = "gemini_spin")
     val rotationAngle by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -274,59 +269,9 @@ fun GeminiDiscoverySection(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Sectional Filter Chips
-        if (recommendations.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // All
-                SectionFilterChip(
-                    label = "All (${recommendations.size})",
-                    isSelected = selectedFilter == DiscoverySectionFilter.ALL,
-                    icon = Icons.Default.AutoAwesome,
-                    activeColor = Color(0xFF8B5CF6),
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        selectedFilter = DiscoverySectionFilter.ALL
-                        activeCardIndex = 0
-                    }
-                )
-
-                // From Searches
-                SectionFilterChip(
-                    label = "From Searches ($searchCount)",
-                    isSelected = selectedFilter == DiscoverySectionFilter.SEARCH,
-                    icon = Icons.Default.Search,
-                    activeColor = Color(0xFF06B6D4),
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        selectedFilter = DiscoverySectionFilter.SEARCH
-                        activeCardIndex = 0
-                    }
-                )
-
-                // From Listened
-                SectionFilterChip(
-                    label = "From Listened ($listenedCount)",
-                    isSelected = selectedFilter == DiscoverySectionFilter.LISTENED,
-                    icon = Icons.Default.Headphones,
-                    activeColor = SpotifyGreen,
-                    onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                        selectedFilter = DiscoverySectionFilter.LISTENED
-                        activeCardIndex = 0
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Mood-Based Tag Filter Chips Row (Scrollable)
+        // Mood-Based Tag Filter Chips Row (Scrollable)
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -335,7 +280,7 @@ fun GeminiDiscoverySection(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                items(DiscoveryMoodFilter.values()) { mood ->
+                items(DiscoveryMoodFilter.entries) { mood ->
                     val isSelected = selectedMood == mood
                     Box(
                         modifier = Modifier
@@ -372,7 +317,6 @@ fun GeminiDiscoverySection(
             }
 
             Spacer(modifier = Modifier.height(14.dp))
-        }
 
         if (isLoading && recommendations.isEmpty()) {
             Box(
@@ -969,7 +913,6 @@ private fun MiniDiscoveryCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
     val accentColor = if (recommendation.isFromSearch) Color(0xFF06B6D4) else SpotifyGreen
 
     Box(

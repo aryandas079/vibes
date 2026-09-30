@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.content.Context
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -145,6 +146,15 @@ fun NowPlayingScreen(
     onOpenSpotifyEmbed: () -> Unit,
     onOpenLyrics: () -> Unit = { onTabSelected(PlayerTab.LYRICS) },
     onOpenEqualizer: (() -> Unit)? = null,
+    selectedStanzaText: String? = null,
+    selectedStanzaExplanation: String? = null,
+    isExplainingStanza: Boolean = false,
+    songMeaningExplanation: String? = null,
+    isExplainingSongMeaning: Boolean = false,
+    onExplainStanza: (String) -> Unit = {},
+    onClearStanzaExplanation: () -> Unit = {},
+    onExplainSongMeaning: (String) -> Unit = {},
+    onClearSongMeaning: () -> Unit = {},
     modifier: Modifier = Modifier,
     onArtistClick: ((String) -> Unit)? = null
 ) {
@@ -188,17 +198,7 @@ fun NowPlayingScreen(
                     )
                 }
 
-                PlayerTabNavigation(
-                    selectedTab = selectedTab,
-                    onTabSelected = { tab ->
-                        view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
-                        onTabSelected(tab)
-                    },
-                    isLyricsSynced = lyricsData?.syncedLines?.isNotEmpty() ?: true,
-                    modifier = Modifier
-                        .width(180.dp)
-                        .testTag("player_tab_bar")
-                )
+                Spacer(modifier = Modifier.weight(1f))
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -307,14 +307,24 @@ fun NowPlayingScreen(
                             lyricsData = lyricsData,
                             isLyricsLoading = isLyricsLoading,
                             selectedLanguage = selectedLanguage,
+                            selectedStanzaText = selectedStanzaText,
+                            selectedStanzaExplanation = selectedStanzaExplanation,
+                            isExplainingStanza = isExplainingStanza,
+                            songMeaningExplanation = songMeaningExplanation,
+                            isExplainingSongMeaning = isExplainingSongMeaning,
                             currentPositionMs = currentPositionMs,
                             durationMs = durationMs,
                             isPlaying = isPlaying,
+                            onExplainStanza = onExplainStanza,
+                            onClearStanzaExplanation = onClearStanzaExplanation,
+                            onExplainSongMeaning = onExplainSongMeaning,
+                            onClearSongMeaning = onClearSongMeaning,
                             onSeek = onSeek,
                             onTogglePlayPause = onTogglePlayPause,
                             onNext = { onNext?.invoke() },
                             onPrevious = { onPrevious?.invoke() },
-                            onSelectLanguage = onSelectLanguage
+                            onSelectLanguage = onSelectLanguage,
+                            onBack = { onTabSelected(PlayerTab.NOW_PLAYING) }
                         )
                     }
                 }
@@ -359,20 +369,6 @@ private fun NowPlayingViewContent(
 
     val displayRatio = if (isScrubbing) scrubPositionRatio else currentRatio
     val displayPositionMs = if (isScrubbing) (scrubPositionRatio * effectiveDuration).toLong() else currentPositionMs
-
-    val syncedLines = lyricsData?.syncedLines ?: emptyList()
-    val activeIndex = remember(currentPositionMs, syncedLines) {
-        if (syncedLines.isEmpty()) -1
-        else {
-            val idx = syncedLines.indexOfLast { currentPositionMs >= it.timeMs }
-            if (idx == -1) 0 else idx
-        }
-    }
-    val activeLineText: String = if (activeIndex in syncedLines.indices) {
-        syncedLines[activeIndex].text
-    } else {
-        lyricsData?.plainLyrics?.lines()?.firstOrNull { it.isNotBlank() } ?: "Tap or drag up for real-time lyrics"
-    }
 
     LazyColumn(
         modifier = Modifier
@@ -662,73 +658,56 @@ private fun NowPlayingViewContent(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // Draggable Interactive Synced Lyrics Card Drawer
+        // Complete Song Lyrics & AI Info Card Button
         item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .liquidGlassEffect(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
-                    .border(1.dp, SpotifyGreen.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                    .border(1.dp, SpotifyGreen.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
                     .clickable {
-                        view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         onOpenLyrics()
                     }
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 18.dp, vertical = 14.dp)
                     .testTag("show_lyrics_tab_button")
             ) {
-                Column(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Drag handle pill bar
-                    Box(
-                        modifier = Modifier
-                            .width(36.dp)
-                            .height(4.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.25f))
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        KaraokeWaveBars(isPlaying = isPlaying)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = activeLineText,
-                            modifier = Modifier.weight(1f, fill = false),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = SpotifyGreen,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.KeyboardArrowUp,
-                            contentDescription = "Drag or tap for real-time lyrics",
-                            tint = Color.White.copy(alpha = 0.60f),
-                            modifier = Modifier.size(16.dp)
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = "Complete Song Lyrics",
+                            tint = SpotifyGreen,
+                            modifier = Modifier.size(20.dp)
                         )
-                        Text(
-                            text = "Drag or tap for real-time lyrics",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White.copy(alpha = 0.60f)
-                        )
+                        Column {
+                            Text(
+                                text = "Open Lyrics & Song Information",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = WhiteSmoke
+                            )
+                            Text(
+                                text = "View complete full song lyrics & AI meaning",
+                                fontSize = 11.5.sp,
+                                color = WhiteSmokeMuted
+                            )
+                        }
                     }
+
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = "Open",
+                        tint = WhiteSmokeMuted,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -820,7 +799,7 @@ private fun NowPlayingViewContent(
 }
 
 // =========================================================================
-// Real-Time Auto-Scrolling Synchronized Karaoke Lyrics View
+// Complete Song Lyrics View with AI Stanza Explainer
 // =========================================================================
 @Composable
 private fun LyricsViewContent(
@@ -828,455 +807,49 @@ private fun LyricsViewContent(
     lyricsData: LyricsData?,
     isLyricsLoading: Boolean,
     selectedLanguage: String,
+    selectedStanzaText: String?,
+    selectedStanzaExplanation: String?,
+    isExplainingStanza: Boolean,
+    songMeaningExplanation: String? = null,
+    isExplainingSongMeaning: Boolean = false,
     currentPositionMs: Long,
     durationMs: Long,
     isPlaying: Boolean,
+    onExplainStanza: (String) -> Unit,
+    onClearStanzaExplanation: () -> Unit,
+    onExplainSongMeaning: (String) -> Unit = {},
+    onClearSongMeaning: () -> Unit = {},
     onSeek: (Long) -> Unit,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
-    onSelectLanguage: (String) -> Unit
+    onSelectLanguage: (String) -> Unit,
+    onBack: () -> Unit = {}
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-    val scope = rememberCoroutineScope()
-    val languages = listOf("Original", "English", "Spanish", "Japanese", "Korean", "French", "German", "Hindi", "Chinese", "Italian")
-    var isDropdownExpanded by remember { mutableStateOf(false) }
-
-    // Resolve preview-synced lyrics with exact millisecond precision
-    val syncedLines: List<SyncedLyricLine> = remember(lyricsData, song, selectedLanguage) {
-        val baseLines = run {
-            val exact = LyricsEngine.getExactLyrics(song.title, song.artist)
-            if (exact != null) {
-                LyricsEngine.parseSyncedLyrics(exact)
-            } else if (lyricsData != null && lyricsData.syncedLines.isNotEmpty()) {
-                val filtered = lyricsData.syncedLines.filterNot {
-                    it.text.contains("Elizabeth Taylor", ignoreCase = true) ||
-                    it.text.contains("driving through the neon lights", ignoreCase = true)
-                }
-                LyricsEngine.alignSyncedLyricsForPreview(filtered, song.title, 30000L)
-            } else if (lyricsData != null && lyricsData.plainLyrics.isNotBlank()) {
-                LyricsEngine.plainToEstimatedSynced(lyricsData.plainLyrics, 30000L)
-            } else {
-                emptyList()
-            }
-        }
-
-        if (selectedLanguage == "Original") {
-            baseLines
-        } else {
-            baseLines.map { line ->
-                val cached = lyricsData?.syncedLines?.firstOrNull { it.text == line.text }?.translation
-                val trans = cached ?: LyricsEngine.translateLyricLine(line.text, selectedLanguage)
-                line.copy(translation = trans)
-            }
-        }
-    }
-
-    val fullLyricsText: String = remember(song, lyricsData) {
-        val fullExact = LyricsEngine.getFullLyrics(song.title, song.artist)
-        if (!fullExact.isNullOrBlank()) {
-            fullExact
-        } else if (lyricsData != null && lyricsData.plainLyrics.isNotBlank()) {
-            lyricsData.plainLyrics
-        } else if (syncedLines.isNotEmpty()) {
-            syncedLines.joinToString("\n") { it.text }
-        } else {
-            ""
-        }
-    }
-
-    // Identify active lyric line in real-time based on preview playback position
-    val activeIndex = remember(currentPositionMs, syncedLines) {
-        if (syncedLines.isEmpty()) -1
-        else {
-            val idx = syncedLines.indexOfLast { currentPositionMs >= it.timeMs }
-            if (idx == -1) 0 else idx
-        }
-    }
-
-    val listState = rememberLazyListState()
-    var isUserInteracting by remember { mutableStateOf(false) }
-    var autoScrollEnabled by remember { mutableStateOf(true) }
-
-    // Detect user manual scroll to temporarily pause auto-scroll without fighting user gesture
-    LaunchedEffect(listState.isScrollInProgress) {
-        if (listState.isScrollInProgress) {
-            isUserInteracting = true
-        } else {
-            delay(2500L) // After 2.5s of inactivity, auto-scroll smoothly re-engages
-            isUserInteracting = false
-        }
-    }
-
-    // Automatic smooth centering scroll synchronized to preview playback time
-    LaunchedEffect(activeIndex, autoScrollEnabled, isUserInteracting) {
-        if (autoScrollEnabled && !isUserInteracting && activeIndex in syncedLines.indices) {
-            val targetIndex = (activeIndex - 1).coerceAtLeast(0)
-            listState.animateScrollToItem(
-                index = targetIndex,
-                scrollOffset = -120
-            )
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp)
-    ) {
-        // Track summary header inside lyrics view
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .liquidGlassEffect(shape = RoundedCornerShape(8.dp), elevation = 2.dp)
-            ) {
-                MusicaImage(
-                    model = song.artworkUrl,
-                    contentDescription = song.album,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                    titlePlaceholder = song.title
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = song.title,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = song.artist,
-                    fontSize = 12.sp,
-                    color = colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Translation Language & Auto-Scroll Status Bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Translation Language Dropdown Selector
-            Box(
-                modifier = Modifier.weight(1f)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .liquidGlassEffect(shape = RoundedCornerShape(12.dp), elevation = 3.dp)
-                        .clickable { isDropdownExpanded = true }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Mic,
-                            contentDescription = null,
-                            tint = colorScheme.primary,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Lang: $selectedLanguage",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colorScheme.onSurface
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Default.ArrowDropDown,
-                        contentDescription = "Select Language",
-                        tint = colorScheme.onSurfaceVariant
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = isDropdownExpanded,
-                    onDismissRequest = { isDropdownExpanded = false }
-                ) {
-                    languages.forEach { lang ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = lang,
-                                    fontWeight = if (lang == selectedLanguage) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (lang == selectedLanguage) colorScheme.primary else colorScheme.onSurface
-                                )
-                            },
-                            onClick = {
-                                onSelectLanguage(lang)
-                                isDropdownExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Auto-Scroll Toggle Pill
-            if (syncedLines.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            if (autoScrollEnabled) SpotifyGreen.copy(alpha = 0.18f)
-                            else colorScheme.surfaceVariant
-                        )
-                        .border(
-                            1.dp,
-                            if (autoScrollEnabled) SpotifyGreen.copy(alpha = 0.4f) else colorScheme.outline,
-                            RoundedCornerShape(12.dp)
-                        )
-                        .clickable {
-                            autoScrollEnabled = !autoScrollEnabled
-                            if (autoScrollEnabled && activeIndex in syncedLines.indices) {
-                                scope.launch {
-                                    listState.animateScrollToItem((activeIndex - 1).coerceAtLeast(0), -120)
-                                }
-                            }
-                        }
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.GraphicEq,
-                            contentDescription = "Auto Scroll",
-                            tint = if (autoScrollEnabled) SpotifyGreen else colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Text(
-                            text = if (autoScrollEnabled) "Auto-Scroll ON" else "Auto-Scroll OFF",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (autoScrollEnabled) SpotifyGreen else colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Real-Time Auto-Scrolling Karaoke Lyrics Viewport
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            if (isLyricsLoading && syncedLines.isEmpty() && fullLyricsText.isBlank()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = colorScheme.primary)
-                }
-            } else if (syncedLines.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Lyrics not available for this track",
-                        fontSize = 14.sp,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                val effectiveDuration = if (durationMs > 0) durationMs else 30000L
-
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .testTag("synced_lyrics_list"),
-                    contentPadding = PaddingValues(vertical = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    itemsIndexed(syncedLines, key = { index, line -> "${line.timeMs}_$index" }) { index, line ->
-                        val nextTimeMs = if (index < syncedLines.lastIndex) {
-                            syncedLines[index + 1].timeMs
-                        } else {
-                            (line.timeMs + 4500L).coerceAtMost(effectiveDuration)
-                        }
-
-                        KaraokeLyricLineView(
-                            line = line,
-                            lineIndex = index,
-                            activeIndex = activeIndex,
-                            currentPositionMs = currentPositionMs,
-                            nextTimeMs = nextTimeMs,
-                            isPlaying = isPlaying,
-                            selectedLanguage = selectedLanguage,
-                            onSeek = { targetMs ->
-                                onSeek(targetMs)
-                                autoScrollEnabled = true
-                                isUserInteracting = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // Floating snap pill if user scrolled away
-            if (isUserInteracting && activeIndex in syncedLines.indices) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 12.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(colorScheme.primary)
-                        .clickable {
-                            isUserInteracting = false
-                            autoScrollEnabled = true
-                            scope.launch {
-                                listState.animateScrollToItem((activeIndex - 1).coerceAtLeast(0), -120)
-                            }
-                        }
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.PlayArrow,
-                            contentDescription = null,
-                            tint = colorScheme.onPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "Snap to Current Line (${formatTime(currentPositionMs)})",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colorScheme.onPrimary
-                        )
-                    }
-                }
-            }
-        }
-
-        // Bottom Compact Audio Player Scrubber for Lyrics View
-        var isLyricsScrubbing by remember { mutableStateOf(false) }
-        var lyricsScrubRatio by remember { mutableFloatStateOf(0f) }
-
-        val effectiveDuration = if (durationMs > 0) durationMs else 30000L
-        val currentProgRatio = if (effectiveDuration > 0) (currentPositionMs.toFloat() / effectiveDuration.toFloat()).coerceIn(0f, 1f) else 0f
-        val displayLyricsRatio = if (isLyricsScrubbing) lyricsScrubRatio else currentProgRatio
-        val displayLyricsPosMs = if (isLyricsScrubbing) (lyricsScrubRatio * effectiveDuration).toLong() else currentPositionMs
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp)
-                .liquidGlassEffect(shape = RoundedCornerShape(20.dp), elevation = 6.dp)
-                .padding(horizontal = 14.dp, vertical = 8.dp)
-        ) {
-            Column {
-                Slider(
-                    value = displayLyricsRatio,
-                    onValueChange = { frac ->
-                        isLyricsScrubbing = true
-                        lyricsScrubRatio = frac
-                    },
-                    onValueChangeFinished = {
-                        isLyricsScrubbing = false
-                        onSeek((lyricsScrubRatio * effectiveDuration).toLong())
-                    },
-                    colors = SliderDefaults.colors(
-                        thumbColor = colorScheme.primary,
-                        activeTrackColor = colorScheme.primary,
-                        inactiveTrackColor = colorScheme.onSurface.copy(alpha = 0.15f)
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = formatTime(displayLyricsPosMs),
-                        fontSize = 12.sp,
-                        color = colorScheme.onSurfaceVariant
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onPrevious,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.SkipPrevious,
-                                contentDescription = "Previous",
-                                tint = colorScheme.onSurface,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(SpotifyGreen)
-                                .clickable { onTogglePlayPause() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (isPlaying) "Pause" else "Play",
-                                tint = StormBlackBg,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = onNext,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.SkipNext,
-                                contentDescription = "Next",
-                                tint = colorScheme.onSurface,
-                                modifier = Modifier.size(26.dp)
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = formatTime(effectiveDuration),
-                        fontSize = 12.sp,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
+    LyricsScreen(
+        song = song,
+        lyricsData = lyricsData,
+        isLyricsLoading = isLyricsLoading,
+        selectedLanguage = selectedLanguage,
+        selectedStanzaText = selectedStanzaText,
+        selectedStanzaExplanation = selectedStanzaExplanation,
+        isExplainingStanza = isExplainingStanza,
+        songMeaningExplanation = songMeaningExplanation,
+        isExplainingSongMeaning = isExplainingSongMeaning,
+        currentPositionMs = currentPositionMs,
+        durationMs = durationMs,
+        isPlaying = isPlaying,
+        onExplainStanza = onExplainStanza,
+        onClearStanzaExplanation = onClearStanzaExplanation,
+        onExplainSongMeaning = onExplainSongMeaning,
+        onClearSongMeaning = onClearSongMeaning,
+        onSeek = onSeek,
+        onTogglePlayPause = onTogglePlayPause,
+        onNext = onNext,
+        onPrevious = onPrevious,
+        onSelectLanguage = onSelectLanguage,
+        onBack = onBack
+    )
 }
 
 @Composable

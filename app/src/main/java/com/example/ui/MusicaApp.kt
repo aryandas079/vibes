@@ -77,6 +77,8 @@ import com.example.ui.screens.FavoritesScreen
 import com.example.ui.screens.GenreDetailScreen
 import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LyricsScreen
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
 import com.example.ui.screens.NowPlayingScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SplashScreen
@@ -154,6 +156,9 @@ fun MusicaApp(
     val lyricsData by viewModel.lyricsData.collectAsStateWithLifecycle()
     val isLyricsLoading by viewModel.isLyricsLoading.collectAsStateWithLifecycle()
     val selectedLanguage by viewModel.selectedLanguage.collectAsStateWithLifecycle()
+    val selectedStanzaText by viewModel.selectedStanzaText.collectAsStateWithLifecycle()
+    val selectedStanzaExplanation by viewModel.selectedStanzaExplanation.collectAsStateWithLifecycle()
+    val isExplainingStanza by viewModel.isExplainingStanza.collectAsStateWithLifecycle()
 
     val isNowPlayingExpanded by viewModel.isNowPlayingExpanded.collectAsStateWithLifecycle()
     val isSpotifyEmbedVisible by viewModel.isSpotifyEmbedVisible.collectAsStateWithLifecycle()
@@ -198,17 +203,22 @@ fun MusicaApp(
         }
     }
 
-    // Splash Screen matching Image 1
+    // Animated Splash Screen shown on EVERY app launch
     if (showSplash) {
         SplashScreen(onSplashFinished = { showSplash = false })
         return
     }
 
+
     Box(modifier = modifier.fillMaxSize().background(colorScheme.background)) {
         // System Back Button Navigation Handlers (Step-by-step back stack pops)
         BackHandler(enabled = isNowPlayingExpanded || viewingArtistName != null || viewingGenre != null || showAuthSheet || showEqualizerSheet || showMoodPlaylistSheet || selectedAlbumForSheet != null) {
             if (isNowPlayingExpanded) {
-                viewModel.closeNowPlaying()
+                if (playerTab == PlayerTab.LYRICS) {
+                    playerTab = PlayerTab.NOW_PLAYING
+                } else {
+                    viewModel.closeNowPlaying()
+                }
             } else if (viewingArtistName != null) {
                 viewingArtistName = null
             } else if (viewingGenre != null) {
@@ -236,6 +246,16 @@ fun MusicaApp(
                                 .padding(horizontal = 14.dp, vertical = 4.dp)
                                 .liquidGlassEffect(shape = RoundedCornerShape(18.dp), elevation = 8.dp)
                         ) {
+                            val activeLyricGlimpse: String? = remember(currentPositionMs, lyricsData) {
+                                val lines = lyricsData?.syncedLines
+                                if (!lines.isNullOrEmpty()) {
+                                    val idx = lines.indexOfLast { currentPositionMs >= it.timeMs }
+                                    if (idx in lines.indices) lines[idx].text else lines.firstOrNull()?.text
+                                } else {
+                                    lyricsData?.plainLyrics?.lines()?.firstOrNull { it.isNotBlank() }
+                                }
+                            }
+
                             MiniPlayer(
                                 song = currentSong,
                                 isPlaying = isPlaying,
@@ -251,7 +271,8 @@ fun MusicaApp(
                                     viewModel.openNowPlaying() 
                                 },
                                 onOpenQueue = { viewModel.openQueueDrawer() },
-                                upcomingCount = upcomingCount
+                                upcomingCount = upcomingCount,
+                                activeLyricGlimpse = activeLyricGlimpse
                             )
                         }
                     }
@@ -514,6 +535,11 @@ fun MusicaApp(
                 lyricsData = lyricsData,
                 isLyricsLoading = isLyricsLoading,
                 selectedLanguage = selectedLanguage,
+                selectedStanzaText = selectedStanzaText,
+                selectedStanzaExplanation = selectedStanzaExplanation,
+                isExplainingStanza = isExplainingStanza,
+                onExplainStanza = { viewModel.explainLyricStanza(it) },
+                onClearStanzaExplanation = { viewModel.clearStanzaExplanation() },
                 onSelectLanguage = { viewModel.setTargetLanguage(it) },
                 onTogglePlayPause = { viewModel.togglePlayPause() },
                 onSeek = { viewModel.seekTo(it) },
@@ -622,6 +648,13 @@ fun MusicaApp(
             ) {
                 SpotifyEmbedDialog(
                     song = currentSong!!,
+                    isPlaying = isPlaying,
+                    isBuffering = isBuffering,
+                    currentPositionMs = currentPositionMs,
+                    durationMs = durationMs,
+                    onTogglePlayPause = { viewModel.togglePlayPause() },
+                    onSeek = { viewModel.seekTo(it) },
+                    onSeekBy = { viewModel.seekBy(it) },
                     onDismiss = { viewModel.toggleSpotifyEmbed(false) }
                 )
             }
@@ -643,9 +676,6 @@ fun MusicaApp(
                 onSignInWithGoogle = { activity ->
                     viewModel.signInWithGoogle(activity)
                 },
-                onQuickSignInAsAryan = { email, name ->
-                    viewModel.quickSignInAsAryan(email, name)
-                },
                 onSignOut = {
                     viewModel.signOut()
                 },
@@ -655,44 +685,6 @@ fun MusicaApp(
                 favoritesCount = favoriteSongs.size,
                 historyCount = historyItems.size
             )
-        }
-
-        // Floating Offline Status Bar Overlay
-        AnimatedVisibility(
-            visible = showOfflineStatusBar,
-            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-            modifier = Modifier.align(Alignment.TopCenter)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(offlineStatusBarColor)
-                    .statusBarsPadding()
-                    .padding(vertical = 8.dp, horizontal = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = if (isOfflineMode) Icons.Default.CloudOff else Icons.Default.CloudDone,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = offlineStatusBarText,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
         }
     }
 }

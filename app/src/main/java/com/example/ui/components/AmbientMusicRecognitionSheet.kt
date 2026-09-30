@@ -84,7 +84,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import coil.compose.AsyncImage
 import com.example.model.Song
 import com.example.ui.theme.SpotifyGreen
 import com.example.ui.theme.StormBlackCard
@@ -547,9 +546,10 @@ private fun AmbientSuccessView(
                         .clip(RoundedCornerShape(10.dp))
                         .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
                 ) {
-                    AsyncImage(
+                    MusicaImage(
                         model = result.song.artworkUrl,
                         contentDescription = result.song.title,
+                        titlePlaceholder = result.song.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )

@@ -58,12 +58,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
-import com.example.ui.components.AmbientMusicRecognitionSheet
-import com.example.ui.components.HummingSearchSheet
 import com.example.ui.components.SearchableTopBar
-import com.example.ui.components.VoiceSearchSheet
-import androidx.compose.material.icons.filled.Hearing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -122,13 +117,6 @@ fun SearchScreen(
     val colorScheme = MaterialTheme.colorScheme
     var selectedFilterTab by remember { mutableStateOf("All") }
     val filterTabs = listOf("All", "Artists", "Albums", "Songs")
-
-    var isVoiceSearchOpen by remember { mutableStateOf(false) }
-    var isHummingSearchOpen by remember { mutableStateOf(false) }
-    var isAmbientRecognitionOpen by remember { mutableStateOf(false) }
-    val voiceSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val hummingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val ambientSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val effectiveArtists = remember(matchedArtists, matchedArtist) {
         if (matchedArtists.isNotEmpty()) {
@@ -196,8 +184,7 @@ fun SearchScreen(
                 isSearching = isSearching,
                 onPlaySong = { song -> onPlaySong(song, searchResults) },
                 onOpenSongDetails = onOpenSongDetails,
-                onVoiceSearchClick = { isVoiceSearchOpen = true },
-                placeholder = "Search songs, artists, metadata..."
+                placeholder = "Search songs, artists, albums..."
             )
 
 
@@ -262,7 +249,44 @@ fun SearchScreen(
                         contentPadding = PaddingValues(bottom = 120.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-
+                        item {
+                            Text(
+                                text = "Browse Genres",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colorScheme.onBackground
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            val genreList = listOf(
+                                "Pop" to Color(0xFFE91E63),
+                                "Hip-Hop" to Color(0xFFF59E0B),
+                                "R&B" to Color(0xFF8B5CF6),
+                                "Rock" to Color(0xFFEF4444),
+                                "Bollywood" to Color(0xFFEC4899),
+                                "K-Pop" to Color(0xFF06B6D4),
+                                "Latin" to Color(0xFF10B981),
+                                "Indie" to Color(0xFF3B82F6)
+                            )
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(genreList) { (genreName, genreColor) ->
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(genreColor.copy(alpha = 0.2f))
+                                            .border(1.dp, genreColor.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+                                            .clickable { onQueryChanged(genreName) }
+                                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                                    ) {
+                                        Text(
+                                            text = genreName,
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = WhiteSmoke
+                                        )
+                                    }
+                                }
+                            }
+                        }
 
                         item {
                             Text(
@@ -554,52 +578,6 @@ fun SearchScreen(
                 }
             }
         }
-    }
-
-    // Voice Search Modal Bottom Sheet
-    if (isVoiceSearchOpen) {
-        VoiceSearchSheet(
-            sheetState = voiceSheetState,
-            onDismiss = { isVoiceSearchOpen = false },
-            onQueryRecognized = { recognizedQuery ->
-                isVoiceSearchOpen = false
-                onQueryChanged(recognizedQuery)
-            }
-        )
-    }
-
-    // Search with Humming Modal Bottom Sheet
-    if (isHummingSearchOpen) {
-        HummingSearchSheet(
-            sheetState = hummingSheetState,
-            catalogSongs = catalogSongs.ifEmpty { searchResults },
-            onDismiss = { isHummingSearchOpen = false },
-            onPlaySong = { song ->
-                isHummingSearchOpen = false
-                onPlaySong(song, listOf(song))
-            },
-            onSearchSong = { songTitle ->
-                isHummingSearchOpen = false
-                onQueryChanged(songTitle)
-            }
-        )
-    }
-
-    // Ambient Music Recognition Modal Bottom Sheet
-    if (isAmbientRecognitionOpen) {
-        AmbientMusicRecognitionSheet(
-            sheetState = ambientSheetState,
-            catalogSongs = catalogSongs.ifEmpty { searchResults },
-            onDismiss = { isAmbientRecognitionOpen = false },
-            onPlaySong = { song ->
-                isAmbientRecognitionOpen = false
-                onPlaySong(song, listOf(song))
-            },
-            onOpenSongDetails = { song ->
-                isAmbientRecognitionOpen = false
-                onOpenSongDetails(song)
-            }
-        )
     }
 }
 
@@ -1445,7 +1423,6 @@ private fun TopTrackItem(
             )
             .clickable {
                 onPlay()
-                onOpenDetails()
             }
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1545,7 +1522,6 @@ private fun SearchSongRow(
             .liquidGlassEffect(shape = RoundedCornerShape(14.dp), elevation = 2.dp)
             .clickable {
                 onPlay()
-                onOpenDetails()
             }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically

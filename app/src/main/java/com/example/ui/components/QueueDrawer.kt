@@ -72,7 +72,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.example.model.Song
 import com.example.ui.theme.SpotifyGreen
 import com.example.ui.theme.StormBlackBg
@@ -432,9 +431,10 @@ private fun NowPlayingQueueCard(
                     .size(54.dp)
                     .clip(RoundedCornerShape(12.dp))
             ) {
-                AsyncImage(
+                MusicaImage(
                     model = song.artworkUrl,
                     contentDescription = song.title,
+                    titlePlaceholder = song.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -542,9 +542,10 @@ private fun UpcomingTrackItem(
             )
 
             // Album Thumbnail
-            AsyncImage(
+            MusicaImage(
                 model = song.artworkUrl,
                 contentDescription = song.title,
+                titlePlaceholder = song.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(44.dp)
@@ -719,9 +720,10 @@ private fun PastTrackItem(
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
+        MusicaImage(
             model = song.artworkUrl,
             contentDescription = song.title,
+            titlePlaceholder = song.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .size(36.dp)

@@ -170,11 +170,51 @@ fun HomeScreen(
         base.shuffled().take(6)
     }
 
-    // Speed Dial: 4 to 6 items strictly prioritized from actual listening history, then favorites, then top trending
-    val speedDialSongs: List<Song> = remember(historyItems, favoriteSongs, trendingSongs, featuredSong) {
-        val historySongs = historyItems.map { it.song }
-        val pool = (historySongs + favoriteSongs + listOfNotNull(featuredSong) + trendingSongs).distinctBy { it.id }
-        pool.take(6)
+    // Speed Dial: 4 most listened songs and 2 most listened albums strictly prioritized by play count in history
+    val (speedDialSongs, speedDialAlbums) = remember(historyItems, favoriteSongs, trendingSongs, featuredSong, featuredAlbums) {
+        val songPlayCounts = historyItems.groupingBy { it.song.id }.eachCount()
+        val songsFromHistory = historyItems
+            .map { it.song }
+            .distinctBy { it.id }
+            .sortedByDescending { songPlayCounts[it.id] ?: 0 }
+
+        val fallbackSongs = (favoriteSongs + listOfNotNull(featuredSong) + trendingSongs).distinctBy { it.id }
+        val topSongs = (songsFromHistory + fallbackSongs).distinctBy { it.id }.take(4)
+
+        // 2 most listened albums strictly prioritized by play count in history
+        val albumPlayCounts = historyItems
+            .filter { it.song.album.isNotBlank() && !it.song.album.equals("Single", ignoreCase = true) }
+            .groupingBy { it.song.album }
+            .eachCount()
+
+        val sortedAlbumNames = albumPlayCounts.entries
+            .sortedByDescending { it.value }
+            .map { it.key }
+
+        val albumsFromHistory = sortedAlbumNames.mapNotNull { albumName ->
+            featuredAlbums.firstOrNull { it.title.equals(albumName, ignoreCase = true) }
+                ?: run {
+                    val matchingSongs = historyItems.map { it.song }.filter { it.album.equals(albumName, ignoreCase = true) }.distinctBy { it.id }
+                    val rep = matchingSongs.firstOrNull()
+                    rep?.let {
+                        Album(
+                            id = it.id,
+                            title = it.album,
+                            artist = it.artist,
+                            artworkUrl = it.artworkUrl,
+                            genre = it.genre,
+                            releaseYear = it.releaseYear,
+                            trackCount = matchingSongs.size,
+                            tracks = matchingSongs
+                        )
+                    }
+                }
+        }
+
+        val fallbackAlbums = featuredAlbums
+        val topAlbums = (albumsFromHistory + fallbackAlbums).distinctBy { it.title.lowercase() }.take(2)
+
+        Pair(topSongs, topAlbums)
     }
 
     val hasHistory = historyItems.isNotEmpty()
@@ -489,8 +529,8 @@ fun HomeScreen(
                 }
             }
 
-            // Section 1: "Speed Dial" 2-Column Grid (based on listening history)
-            if (speedDialSongs.isNotEmpty()) {
+            // Section 1: "Speed Dial" 2-Column Grid (4 most listened songs + 2 most listened albums based on history)
+            if (speedDialSongs.isNotEmpty() || speedDialAlbums.isNotEmpty()) {
                 item {
                     Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
                         Row(
@@ -513,7 +553,7 @@ fun HomeScreen(
                                         .padding(horizontal = 7.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = if (hasHistory) "From History" else "Quick Play",
+                                        text = if (hasHistory) "Top Listened" else "Quick Play",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (hasHistory) SpotifyGreen else colorScheme.primary
@@ -523,7 +563,7 @@ fun HomeScreen(
 
                             if (hasHistory) {
                                 Text(
-                                    text = "${historyItems.size} played",
+                                    text = "Top Tracks & Albums",
                                     fontSize = 11.sp,
                                     color = colorScheme.onSurfaceVariant
                                 )
@@ -532,10 +572,13 @@ fun HomeScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // 2-Column Grid for Speed Dial items
-                        val pairs = speedDialSongs.chunked(2)
+                        // 2-Column Grid for Speed Dial items: 4 Most Listened Songs + 2 Most Listened Albums
+                        val songPairs = speedDialSongs.take(4).chunked(2)
+                        val albumPairs = speedDialAlbums.take(2).chunked(2)
+
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            pairs.forEach { pair ->
+                            // 4 Most Listened Songs
+                            songPairs.forEach { pair ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -590,6 +633,89 @@ fun HomeScreen(
                                             }
 
                                             if (isCurrent && isPlaying) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .padding(end = 8.dp)
+                                                        .size(22.dp)
+                                                        .clip(CircleShape)
+                                                        .background(SpotifyGreen),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.GraphicEq,
+                                                        contentDescription = "Playing",
+                                                        tint = StormBlackBg,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // Balance row if odd count
+                                    if (pair.size == 1) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+
+                            // 2 Most Listened Albums
+                            albumPairs.forEach { pair ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    pair.forEach { album ->
+                                        val isAlbumPlaying = currentPlayingId != null && album.tracks.any { it.id == currentPlayingId } && isPlaying
+                                        Row(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(58.dp)
+                                                .liquidGlassEffect(
+                                                    shape = RoundedCornerShape(12.dp),
+                                                    elevation = if (isAlbumPlaying) 6.dp else 2.dp
+                                                )
+                                                .clickable {
+                                                    if (album.tracks.isNotEmpty()) {
+                                                        onPlaySong(album.tracks.first(), album.tracks)
+                                                    }
+                                                    onOpenAlbum(album)
+                                                },
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            MusicaImage(
+                                                model = album.artworkUrl,
+                                                contentDescription = album.title,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier
+                                                    .size(58.dp)
+                                                    .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)),
+                                                titlePlaceholder = album.title
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(end = 6.dp),
+                                                verticalArrangement = Arrangement.Center
+                                            ) {
+                                                Text(
+                                                    text = album.title,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = if (isAlbumPlaying) SpotifyGreen else colorScheme.onSurface,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = "Album • ${album.artist}",
+                                                    fontSize = 11.sp,
+                                                    color = colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+
+                                            if (isAlbumPlaying) {
                                                 Box(
                                                     modifier = Modifier
                                                         .padding(end = 8.dp)
@@ -748,7 +874,6 @@ fun HomeScreen(
                     onPlaySong = { song ->
                         val playlist = discoveryRecommendations.map { it.song }
                         onPlaySong(song, playlist)
-                        onOpenSongDetails(song)
                     },
                     onRefreshDiscovery = onRefreshDiscovery,
                     onOpenLyrics = { song ->

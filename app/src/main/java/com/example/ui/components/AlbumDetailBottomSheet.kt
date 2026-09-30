@@ -163,9 +163,10 @@ fun AlbumDetailBottomSheet(
                                 .clip(RoundedCornerShape(18.dp))
                                 .border(1.dp, StormSlateBorder, RoundedCornerShape(18.dp))
                         ) {
-                            AsyncImage(
+                            MusicaImage(
                                 model = album.artworkUrl,
                                 contentDescription = album.title,
+                                titlePlaceholder = album.title,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
                             )

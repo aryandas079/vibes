@@ -1,8 +1,11 @@
 package com.example.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -85,6 +88,7 @@ fun HomeAuthHeader(
 ) {
     val haptic = LocalHapticFeedback.current
     val colorScheme = MaterialTheme.colorScheme
+    var showDevInfoDialog by remember { mutableStateOf(false) }
 
     // Dynamic greeting based on current time
     val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
@@ -116,8 +120,22 @@ fun HomeAuthHeader(
                 modifier = Modifier.weight(1f)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_vibes_logo),
+                        contentDescription = "Vibes Logo",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "$greetingTime,",
+                        text = "vibes",
+                        fontSize = 13.sp,
+                        color = WhiteSmoke,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "•  $greetingTime,",
                         fontSize = 13.sp,
                         color = WhiteSmokeMuted,
                         fontWeight = FontWeight.Medium,
@@ -176,25 +194,30 @@ fun HomeAuthHeader(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Right: Profile Avatar or Sign In button + Search icon
+            // Right: Developer Info 'i' Button + Profile Avatar or Sign In button
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Offline Mode toggle button
-                IconButton(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onToggleOfflineMode()
-                    },
+                // Small 'i' Info Button (in size of the user profile button)
+                val profileButtonSize = if (userSession != null) 42.dp else 38.dp
+                Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .liquidGlassEffect(shape = CircleShape, elevation = 2.dp)
+                        .size(profileButtonSize)
+                        .clip(CircleShape)
+                        .background(StormBlackElevated)
+                        .border(1.2.dp, StormSlateBorder, CircleShape)
+                        .liquidGlassEffect(shape = CircleShape, elevation = 4.dp)
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            showDevInfoDialog = true
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (isOfflineMode) Icons.Default.CloudOff else Icons.Default.CloudDone,
-                        contentDescription = "Toggle Offline Mode",
-                        tint = if (isOfflineMode) Color(0xFF1DB954) else colorScheme.onSurface.copy(alpha = 0.6f),
+                        painter = painterResource(id = R.drawable.ic_info),
+                        contentDescription = "App Information",
+                        tint = WhiteSmoke,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -443,5 +466,11 @@ fun HomeAuthHeader(
                 }
             }
         }
+    }
+
+    if (showDevInfoDialog) {
+        AppDevelopmentDialog(
+            onDismiss = { showDevInfoDialog = false }
+        )
     }
 }

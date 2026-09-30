@@ -141,6 +141,7 @@ interface ItunesApi {
     @GET("search")
     suspend fun searchSongs(
         @Query("term") term: String,
+        @Query("country") country: String = "US",
         @Query("entity") entity: String = "song",
         @Query("limit") limit: Int = 30
     ): ItunesResponse
@@ -161,8 +162,37 @@ interface LrclibApi {
     ): List<LrclibResponse>
 }
 
+@JsonClass(generateAdapter = true)
+data class LyricsOvhResponse(
+    val lyrics: String? = null,
+    val error: String? = null
+)
+
+interface LyricsOvhApi {
+    @GET("v1/{artist}/{title}")
+    suspend fun getLyrics(
+        @Path("artist") artist: String,
+        @Path("title") title: String
+    ): LyricsOvhResponse
+}
+
+@JsonClass(generateAdapter = true)
+data class LyristResponse(
+    val lyrics: String? = null,
+    val title: String? = null,
+    val artist: String? = null
+)
+
+interface LyristApi {
+    @GET("api/{title}/{artist}")
+    suspend fun getLyrics(
+        @Path("title") title: String,
+        @Path("artist") artist: String
+    ): LyristResponse
+}
+
 object NetworkClient {
-    private val okHttpClient by lazy {
+    val okHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
@@ -203,5 +233,23 @@ object NetworkClient {
             .addConverterFactory(MoshiConverterFactory.create())
             .build()
             .create(LrclibApi::class.java)
+    }
+
+    val lyricsOvhApi: LyricsOvhApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://api.lyrics.ovh/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create())
+            .build()
+            .create(LyricsOvhApi::class.java)
+    }
+
+    val lyristApi: LyristApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://lyrist.vercel.app/")
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create())
+            .build()
+            .create(LyristApi::class.java)
     }
 }

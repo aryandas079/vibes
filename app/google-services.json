@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "766691892101",
+    "project_id": "musica-22855",
+    "storage_bucket": "musica-22855.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:766691892101:android:d967f2ed5fb631246142ec",
+        "android_client_info": {
+          "package_name": "com.aistudio.musica.lyrics"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "766691892101-7dmntj8d3rmmeu8193eqr8fndodd63p2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.musica.lyrics",
+            "certificate_hash": "af1c4a0ed72ef5fe77525b75c1f9c537a2d57e1b"
+          }
+        },
+        {
+          "client_id": "766691892101-mqrj0an2ft6nlhn2pop5tcfiq1u8t63i.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAc_eN9sbDkoclVG7PS2f8fOyVw7PPdVdw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "766691892101-mqrj0an2ft6nlhn2pop5tcfiq1u8t63i.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

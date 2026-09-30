@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.BuildConfig
 import com.example.data.firebase.FirebaseAuthManager
 import com.example.data.local.MusicaDatabase
 import com.example.data.repository.MusicRepository
@@ -288,6 +289,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRomanizationEnabled = MutableStateFlow(true)
     val isRomanizationEnabled: StateFlow<Boolean> = _isRomanizationEnabled.asStateFlow()
 
+    // AI Stanza Lyric Meaning Explainer State
+    private val _selectedStanzaText = MutableStateFlow<String?>(null)
+    val selectedStanzaText: StateFlow<String?> = _selectedStanzaText.asStateFlow()
+
+    private val _selectedStanzaExplanation = MutableStateFlow<String?>(null)
+    val selectedStanzaExplanation: StateFlow<String?> = _selectedStanzaExplanation.asStateFlow()
+
+    private val _isExplainingStanza = MutableStateFlow(false)
+    val isExplainingStanza: StateFlow<Boolean> = _isExplainingStanza.asStateFlow()
+
+    // AI Song Meaning Explainer State
+    private val _songMeaningExplanation = MutableStateFlow<String?>(null)
+    val songMeaningExplanation: StateFlow<String?> = _songMeaningExplanation.asStateFlow()
+
+    private val _isExplainingSongMeaning = MutableStateFlow(false)
+    val isExplainingSongMeaning: StateFlow<Boolean> = _isExplainingSongMeaning.asStateFlow()
+
     // Navigation & Modal Sheets
     private val _isNowPlayingExpanded = MutableStateFlow(false)
     val isNowPlayingExpanded: StateFlow<Boolean> = _isNowPlayingExpanded.asStateFlow()
@@ -301,6 +319,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         loadHomeScreenData()
         // seedFollowedArtistsIfEmpty() - Only added if followed by user
         // scanAndSyncDeviceAudio() - Only shown if explicitly added/scanned by user
+
+        // Record meaningful listen only after threshold (>=7s or track completion)
+        playerManager.onMeaningfulListen = { song ->
+            viewModelScope.launch {
+                repository.addToHistory(song)
+            }
+        }
 
         // Automatically sync lyrics whenever playerManager changes song
         viewModelScope.launch {
@@ -406,8 +431,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private var discoveryJob: Job? = null
+
     fun refreshGeminiDiscovery() {
-        viewModelScope.launch {
+        discoveryJob?.cancel()
+        discoveryJob = viewModelScope.launch {
             _isDiscoveryLoading.value = true
             try {
                 val discovery = repository.getGeminiDiscoveryRecommendations(
@@ -415,9 +443,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     history = historyItems.value,
                     favorites = favoriteSongs.value
                 )
-                _discoveryRecommendations.value = discovery
+                if (discovery.isNotEmpty()) {
+                    _discoveryRecommendations.value = discovery
+                }
             } catch (e: Exception) {
-                // Fallback to recommended songs if any unexpected failure
+                // Ignore cancellation
             } finally {
                 _isDiscoveryLoading.value = false
             }
@@ -711,10 +741,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (fallback.any { it.id == song.id }) fallback else (listOf(song) + fallback)
         }
         playerManager.playSong(song, effectivePlaylist)
-        // Add to history so homescreen recommendations are dynamically updated
-        viewModelScope.launch {
-            repository.addToHistory(song)
-        }
     }
 
     fun togglePlayPause() {
@@ -731,22 +757,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun skipToNext() {
         playerManager.playNext()
-        val nextSong = playerManager.currentSong.value
-        if (nextSong != null) {
-            viewModelScope.launch {
-                repository.addToHistory(nextSong)
-            }
-        }
     }
 
     fun skipToPrevious() {
         playerManager.playPrevious()
-        val prevSong = playerManager.currentSong.value
-        if (prevSong != null) {
-            viewModelScope.launch {
-                repository.addToHistory(prevSong)
-            }
-        }
     }
 
     fun seekTo(positionMs: Long) {
@@ -853,7 +867,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setLanguage(language: String) {
         _selectedLanguage.value = language
-        applyLiveTranslationToCurrentLyrics(language)
+        if (language == "Original") {
+            fetchLyricsForSong(currentSong.value ?: return)
+        } else {
+            applyLiveTranslationToCurrentLyrics(language)
+        }
     }
 
     fun setLyricsDisplayMode(mode: LyricsDisplayMode) {
@@ -864,65 +882,113 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _isRomanizationEnabled.value = !_isRomanizationEnabled.value
     }
 
+    private var lyricsJob: Job? = null
+
     private fun fetchLyricsForSong(song: Song) {
-        viewModelScope.launch {
+        lyricsJob?.cancel()
+        lyricsJob = viewModelScope.launch {
+            _lyricsData.value = null
             _isLyricsLoading.value = true
             val lyrics = repository.getLyricsForSong(song)
-            _lyricsData.value = lyrics
-            _isLyricsLoading.value = false
-            applyLiveTranslationToCurrentLyrics(_selectedLanguage.value)
+            if (playerManager.currentSong.value?.id == song.id) {
+                _lyricsData.value = lyrics
+                _isLyricsLoading.value = false
+                if (_selectedLanguage.value != "Original") {
+                    applyLiveTranslationToCurrentLyrics(_selectedLanguage.value)
+                }
+            }
         }
     }
 
     private fun applyLiveTranslationToCurrentLyrics(targetLang: String) {
         val current = _lyricsData.value ?: return
-        if (targetLang == "Original") {
-            val updatedLines = current.syncedLines.map { line ->
-                line.copy(
-                    translation = null,
-                    romanized = if (_isRomanizationEnabled.value) LyricsEngine.romanizeIfApplicable(line.text) else null
-                )
-            }
-            _lyricsData.value = current.copy(syncedLines = updatedLines)
-            return
-        }
-
+        
         val cacheKey = "${current.songId}_$targetLang"
         val cached = LyricsEngine.getCachedTranslation(cacheKey)
+        // If we previously translated the plainLyrics, it would be mapped to a single string here
+        // We'll store the full translated string in the cache under cacheKey_plain.
 
-        if (cached != null) {
-            val updatedLines = current.syncedLines.map { line ->
-                line.copy(
-                    translation = cached[line.text],
-                    romanized = if (_isRomanizationEnabled.value) LyricsEngine.romanizeIfApplicable(line.text) else null
-                )
-            }
-            _lyricsData.value = current.copy(syncedLines = updatedLines)
+        if (cached != null && cached.containsKey("FULL_PLAIN_LYRICS")) {
+            _lyricsData.value = current.copy(plainLyrics = cached["FULL_PLAIN_LYRICS"] ?: current.plainLyrics)
             return
         }
 
         viewModelScope.launch {
             _isLyricsLoading.value = true
-            val originalTexts = current.syncedLines.map { it.text }
-            val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+            val linesToTranslate = current.plainLyrics.lines().filter { it.isNotBlank() }
+            val apiKey = BuildConfig.GEMINI_API_KEY
             
             val geminiTranslations = if (apiKey.isNotBlank() && apiKey != "MY_GEMINI_API_KEY" && !apiKey.contains("placeholder") && !apiKey.contains("dummy")) {
-                LyricsEngine.translateLyricsWithGemini(originalTexts, targetLang, apiKey)
+                LyricsEngine.translateLyricsWithGemini(linesToTranslate, targetLang, apiKey)
             } else null
 
             val translationMap = mutableMapOf<String, String>()
-            val updatedLines = current.syncedLines.map { line ->
-                val trans = geminiTranslations?.get(line.text) ?: LyricsEngine.translateLyricLine(line.text, targetLang)
-                translationMap[line.text] = trans
-                line.copy(
-                    translation = trans,
-                    romanized = if (_isRomanizationEnabled.value) LyricsEngine.romanizeIfApplicable(line.text) else null
-                )
+            val translatedPlainLyrics = current.plainLyrics.lines().joinToString("\n") { line ->
+                if (line.isBlank()) return@joinToString ""
+                val trans = geminiTranslations?.get(line) ?: LyricsEngine.translateLyricLine(line, targetLang)
+                translationMap[line] = trans
+                trans
             }
+            
+            translationMap["FULL_PLAIN_LYRICS"] = translatedPlainLyrics
             LyricsEngine.saveTranslation(cacheKey, translationMap)
-            _lyricsData.value = current.copy(syncedLines = updatedLines)
-            _isLyricsLoading.value = false
+            
+            if (playerManager.currentSong.value?.id == current.songId) {
+                _lyricsData.value = current.copy(plainLyrics = translatedPlainLyrics)
+                _isLyricsLoading.value = false
+            }
         }
+    }
+
+    // AI Stanza Lyric Explainer Action
+    fun explainLyricStanza(stanzaText: String) {
+        val song = currentSong.value ?: return
+        viewModelScope.launch {
+            _selectedStanzaText.value = stanzaText
+            _isExplainingStanza.value = true
+            _selectedStanzaExplanation.value = null
+
+            val apiKey = BuildConfig.GEMINI_API_KEY
+            val explanation = LyricsEngine.explainLyricStanzaWithGemini(
+                songTitle = song.title,
+                artistName = song.artist,
+                stanzaText = stanzaText,
+                apiKey = apiKey
+            )
+
+            _isExplainingStanza.value = false
+            _selectedStanzaExplanation.value = explanation
+        }
+    }
+
+    fun clearStanzaExplanation() {
+        _selectedStanzaText.value = null
+        _selectedStanzaExplanation.value = null
+        _isExplainingStanza.value = false
+    }
+
+    fun explainSongMeaning(lyricsText: String) {
+        val song = currentSong.value ?: return
+        viewModelScope.launch {
+            _isExplainingSongMeaning.value = true
+            _songMeaningExplanation.value = null
+
+            val apiKey = BuildConfig.GEMINI_API_KEY
+            val explanation = LyricsEngine.explainSongMeaningWithGemini(
+                songTitle = song.title,
+                artistName = song.artist,
+                lyricsText = lyricsText,
+                apiKey = apiKey
+            )
+
+            _isExplainingSongMeaning.value = false
+            _songMeaningExplanation.value = explanation
+        }
+    }
+
+    fun clearSongMeaningExplanation() {
+        _songMeaningExplanation.value = null
+        _isExplainingSongMeaning.value = false
     }
 
     // Authentication & Firestore Sync Actions
@@ -938,38 +1004,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }.onFailure { error ->
                 _isAuthLoading.value = false
                 _authErrorMessage.value = error.message ?: "Google sign in failed"
-            }
-        }
-    }
-
-    fun quickSignInAsAryan(email: String = "aryandas.dev@gmail.com", name: String = "Aryan Das") {
-        viewModelScope.launch {
-            _isAuthLoading.value = true
-            _authErrorMessage.value = null
-            val result = authManager.quickSignInAsAryan(email, name)
-            result.onSuccess { session ->
-                _isAuthLoading.value = false
-                repository.activeUserId = session.uid
-                syncUserData()
-            }.onFailure { error ->
-                _isAuthLoading.value = false
-                _authErrorMessage.value = error.message ?: "Sign in failed"
-            }
-        }
-    }
-
-    fun signInWithEmail(email: String, pass: String) {
-        viewModelScope.launch {
-            _isAuthLoading.value = true
-            _authErrorMessage.value = null
-            val result = authManager.signInWithEmail(email, pass)
-            result.onSuccess { session ->
-                _isAuthLoading.value = false
-                repository.activeUserId = session.uid
-                syncUserData()
-            }.onFailure { error ->
-                _isAuthLoading.value = false
-                _authErrorMessage.value = error.message ?: "Sign in failed"
             }
         }
     }

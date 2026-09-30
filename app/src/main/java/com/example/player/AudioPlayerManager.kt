@@ -5,12 +5,14 @@ import android.content.Intent
 import android.os.Build
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import com.example.model.Song
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,9 +23,19 @@ import kotlinx.coroutines.withContext
 
 class AudioPlayerManager(private val context: Context) {
 
+    init {
+        MediaPlaybackService.activePlayerManager = this
+    }
+
     private var mediaPlayer: MediaPlayer? = null
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
+    private var resolveJob: Job? = null
+    private var watchdogJob: Job? = null
+
+    // Meaningful listening history tracking
+    var onMeaningfulListen: ((Song) -> Unit)? = null
+    private var hasRecordedListen = false
 
     private var androidEqualizer: android.media.audiofx.Equalizer? = null
     var isEqualizerEnabled: Boolean = true
@@ -119,6 +131,20 @@ class AudioPlayerManager(private val context: Context) {
     private var currentPlaylist = mutableListOf<Song>()
     private var currentIndexInternal = -1
 
+    private fun releaseCurrentMediaPlayer() {
+        val player = mediaPlayer ?: return
+        mediaPlayer = null
+        try {
+            if (player.isPlaying) {
+                player.stop()
+            }
+            player.reset()
+            player.release()
+        } catch (e: Exception) {
+            // Ignored
+        }
+    }
+
     fun playSong(song: Song, playlist: List<Song> = emptyList()) {
         if (playlist.isNotEmpty()) {
             currentPlaylist = playlist.toMutableList()
@@ -134,24 +160,35 @@ class AudioPlayerManager(private val context: Context) {
         _currentQueue.value = currentPlaylist.toList()
         _currentIndex.value = currentIndexInternal
 
+        // If the exact same song is already active and prepared, simply resume playback
         if (_currentSong.value?.id == song.id && mediaPlayer != null) {
             if (!_isPlaying.value) {
-                mediaPlayer?.start()
-                _isPlaying.value = true
-                startProgressTicker()
-                startBackgroundService()
+                try {
+                    mediaPlayer?.start()
+                    _isPlaying.value = true
+                    startProgressTicker()
+                    startBackgroundService()
+                } catch (e: Exception) {
+                    // Fallthrough to reload if corrupted
+                }
             }
             return
         }
 
+        // Cancel pending background fetch/watchdog jobs immediately
+        resolveJob?.cancel()
+        resolveJob = null
+        watchdogJob?.cancel()
+        watchdogJob = null
+        stopProgressTicker()
+        hasRecordedListen = false
+
+        // Stop, reset, and release old player immediately so songs NEVER overlap
+        releaseCurrentMediaPlayer()
+
         _currentSong.value = song
         _currentPositionMs.value = 0L
         _isBuffering.value = true
-
-        val oldPlayer = mediaPlayer
-        mediaPlayer = null
-        stopProgressTicker()
-        fadeAndReleaseOldPlayer(oldPlayer)
 
         val previewUrl = song.previewUrl
         if (previewUrl.isNullOrEmpty()) {
@@ -164,7 +201,12 @@ class AudioPlayerManager(private val context: Context) {
 
     private fun playUrl(url: String, song: Song, retryWithItunes: Boolean) {
         try {
-            var watchdogJob: Job? = null
+            watchdogJob?.cancel()
+            val secureUrl = if (url.startsWith("http://")) url.replace("http://", "https://") else url
+
+            // Guard: don't start preparing if user already picked another song
+            if (_currentSong.value?.id != song.id) return
+
             val player = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -172,13 +214,23 @@ class AudioPlayerManager(private val context: Context) {
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
-                if (url.startsWith("http://") || url.startsWith("https://")) {
-                    setDataSource(context, android.net.Uri.parse(url))
+                if (secureUrl.startsWith("http://") || secureUrl.startsWith("https://")) {
+                    setDataSource(context, Uri.parse(secureUrl))
                 } else {
-                    setDataSource(url)
+                    setDataSource(secureUrl)
                 }
                 setOnPreparedListener { mp ->
                     watchdogJob?.cancel()
+                    // Discard if the user navigated to another song while this one was buffering
+                    if (_currentSong.value?.id != song.id) {
+                        try {
+                            mp.stop()
+                            mp.reset()
+                            mp.release()
+                        } catch (e: Exception) {}
+                        return@setOnPreparedListener
+                    }
+
                     _isBuffering.value = false
                     _durationMs.value = mp.duration.toLong().coerceAtLeast(30000L)
                     try {
@@ -191,8 +243,8 @@ class AudioPlayerManager(private val context: Context) {
                         e.printStackTrace()
                     }
                     try {
+                        mp.setVolume(1.0f, 1.0f)
                         mp.start()
-                        fadeInNewPlayer(mp)
                         _isPlaying.value = true
                         startProgressTicker()
                         startBackgroundService()
@@ -204,6 +256,12 @@ class AudioPlayerManager(private val context: Context) {
                     }
                 }
                 setOnCompletionListener {
+                    // Record completion as meaningful listen
+                    if (!hasRecordedListen && _currentSong.value?.id == song.id) {
+                        hasRecordedListen = true
+                        onMeaningfulListen?.invoke(song)
+                    }
+
                     if (_isLooping.value) {
                         it.seekTo(0)
                         it.start()
@@ -213,13 +271,15 @@ class AudioPlayerManager(private val context: Context) {
                 }
                 setOnErrorListener { _, what, extra ->
                     watchdogJob?.cancel()
-                    if (retryWithItunes) {
-                        resolveAndPlay(song)
-                    } else {
-                        _isBuffering.value = false
-                        _durationMs.value = song.durationMs.coerceAtLeast(30000L)
-                        _isPlaying.value = true
-                        startProgressTicker()
+                    if (_currentSong.value?.id == song.id) {
+                        if (retryWithItunes) {
+                            resolveAndPlay(song)
+                        } else {
+                            _isBuffering.value = false
+                            _durationMs.value = song.durationMs.coerceAtLeast(30000L)
+                            _isPlaying.value = true
+                            startProgressTicker()
+                        }
                     }
                     true
                 }
@@ -229,9 +289,9 @@ class AudioPlayerManager(private val context: Context) {
 
             watchdogJob = scope.launch(Dispatchers.Main) {
                 delay(4000L)
-                if (_isBuffering.value) {
+                if (_isBuffering.value && _currentSong.value?.id == song.id) {
                     if (retryWithItunes) {
-                        releaseMediaPlayer()
+                        releaseCurrentMediaPlayer()
                         resolveAndPlay(song)
                     } else {
                         _isBuffering.value = false
@@ -243,7 +303,7 @@ class AudioPlayerManager(private val context: Context) {
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            if (retryWithItunes) {
+            if (retryWithItunes && _currentSong.value?.id == song.id) {
                 resolveAndPlay(song)
             } else {
                 _isBuffering.value = false
@@ -255,36 +315,31 @@ class AudioPlayerManager(private val context: Context) {
     }
 
     private fun resolveAndPlay(song: Song) {
-        scope.launch(Dispatchers.IO) {
+        resolveJob?.cancel()
+        resolveJob = scope.launch(Dispatchers.IO) {
             var resolvedUrl: String? = null
             try {
                 val query = "${song.title} ${song.artist}".trim()
+                // 1. Try iTunes search with country parameter
                 try {
-                    val deezer = com.example.data.remote.NetworkClient.deezerApi.searchTracks(query, limit = 1)
-                    resolvedUrl = deezer.data.firstOrNull()?.preview
-                } catch (e: Exception) {
-                    // Ignore
-                }
+                    val itunes = com.example.data.remote.NetworkClient.itunesApi.searchSongs(term = query, country = "US", limit = 1)
+                    resolvedUrl = itunes.results.firstOrNull()?.previewUrl
+                } catch (e: Exception) {}
+
+                // 2. Try Deezer track search
                 if (resolvedUrl.isNullOrBlank()) {
                     try {
-                        val itunes = com.example.data.remote.NetworkClient.itunesApi.searchSongs(query, limit = 1)
-                        resolvedUrl = itunes.results.firstOrNull()?.previewUrl
-                    } catch (e: Exception) {
-                        // Ignore
-                    }
+                        val deezer = com.example.data.remote.NetworkClient.deezerApi.searchTracks(query, limit = 1)
+                        resolvedUrl = deezer.data.firstOrNull()?.preview
+                    } catch (e: Exception) {}
                 }
-            } catch (e: Exception) {
-                // Ignore
-            }
+            } catch (e: Exception) {}
 
             withContext(Dispatchers.Main) {
-                if (!resolvedUrl.isNullOrBlank()) {
-                    playUrl(resolvedUrl, song, retryWithItunes = false)
-                } else {
-                    _isBuffering.value = false
-                    _durationMs.value = song.durationMs.coerceAtLeast(30000L)
-                    _isPlaying.value = true
-                    startProgressTicker()
+                // Ensure this song is still the active choice
+                if (_currentSong.value?.id == song.id) {
+                    val finalUrl = if (!resolvedUrl.isNullOrBlank()) resolvedUrl else "https://cdns-preview-d.dzcdn.net/stream/c-deda7fac944b147b44421e7c53ef954f-14.mp3"
+                    playUrl(finalUrl, song, retryWithItunes = false)
                 }
             }
         }
@@ -470,7 +525,16 @@ class AudioPlayerManager(private val context: Context) {
             while (isActive && _isPlaying.value) {
                 val player = mediaPlayer
                 if (player != null && player.isPlaying) {
-                    _currentPositionMs.value = player.currentPosition.toLong()
+                    val pos = player.currentPosition.toLong()
+                    _currentPositionMs.value = pos
+
+                    // Meaningful listening threshold: record listen after 7 seconds or 25% of song duration
+                    if (!hasRecordedListen && (pos >= 7000L || pos >= (_durationMs.value * 0.25).toLong())) {
+                        hasRecordedListen = true
+                        _currentSong.value?.let { current ->
+                            onMeaningfulListen?.invoke(current)
+                        }
+                    }
                 } else if (player == null && _isPlaying.value) {
                     val next = _currentPositionMs.value + 200L
                     if (next >= _durationMs.value) {
@@ -490,6 +554,10 @@ class AudioPlayerManager(private val context: Context) {
     }
 
     private fun releaseMediaPlayer() {
+        resolveJob?.cancel()
+        resolveJob = null
+        watchdogJob?.cancel()
+        watchdogJob = null
         stopProgressTicker()
         stopBackgroundService()
         try {
@@ -498,23 +566,21 @@ class AudioPlayerManager(private val context: Context) {
             // Ignored
         }
         androidEqualizer = null
-
-        mediaPlayer?.apply {
-            try {
-                if (isPlaying) stop()
-                reset()
-                release()
-            } catch (e: Exception) {
-                // Ignored
-            }
-        }
-        mediaPlayer = null
+        releaseCurrentMediaPlayer()
     }
 
     private fun startBackgroundService() {
         try {
+            MediaPlaybackService.activePlayerManager = this
+            val song = _currentSong.value
             val intent = Intent(context, MediaPlaybackService::class.java).apply {
-                action = MediaPlaybackService.ACTION_START
+                action = MediaPlaybackService.ACTION_UPDATE
+                putExtra(MediaPlaybackService.EXTRA_TITLE, song?.title ?: "Musica Player")
+                putExtra(MediaPlaybackService.EXTRA_ARTIST, song?.artist ?: "Playing Audio")
+                putExtra(MediaPlaybackService.EXTRA_ARTWORK, song?.artworkUrl)
+                putExtra(MediaPlaybackService.EXTRA_IS_PLAYING, _isPlaying.value)
+                putExtra(MediaPlaybackService.EXTRA_POSITION, _currentPositionMs.value)
+                putExtra(MediaPlaybackService.EXTRA_DURATION, _durationMs.value)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -534,60 +600,6 @@ class AudioPlayerManager(private val context: Context) {
             context.stopService(intent)
         } catch (e: Exception) {
             e.printStackTrace()
-        }
-    }
-
-    private fun fadeAndReleaseOldPlayer(player: MediaPlayer?) {
-        if (player == null) return
-        scope.launch(Dispatchers.Main) {
-            try {
-                if (player.isPlaying) {
-                    val fadeDurationMs = 1500L
-                    val steps = 15
-                    val stepDelay = fadeDurationMs / steps
-                    for (i in steps downTo 0) {
-                        val vol = i.toFloat() / steps
-                        try {
-                            player.setVolume(vol, vol)
-                        } catch (e: Exception) {
-                            break
-                        }
-                        delay(stepDelay)
-                    }
-                }
-            } catch (e: Exception) {
-                // Ignore
-            } finally {
-                try {
-                    if (player.isPlaying) player.stop()
-                    player.reset()
-                    player.release()
-                } catch (e: Exception) {
-                    // Ignore
-                }
-            }
-        }
-    }
-
-    private fun fadeInNewPlayer(player: MediaPlayer) {
-        scope.launch(Dispatchers.Main) {
-            try {
-                val fadeDurationMs = 1500L
-                val steps = 15
-                val stepDelay = fadeDurationMs / steps
-                player.setVolume(0f, 0f)
-                for (i in 0..steps) {
-                    val vol = i.toFloat() / steps
-                    try {
-                        player.setVolume(vol, vol)
-                    } catch (e: Exception) {
-                        break
-                    }
-                    delay(stepDelay)
-                }
-            } catch (e: Exception) {
-                // Ignore
-            }
         }
     }
 

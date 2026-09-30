@@ -1,5 +1,11 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,19 +24,19 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Translate
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -42,7 +48,6 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -52,33 +57,47 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.example.model.LyricsData
 import com.example.model.Song
-import com.example.model.SyncedLyricLine
-import com.example.ui.components.KaraokeLyricLineView
-import com.example.ui.components.KaraokeWaveBars
-import com.example.ui.theme.*
+import com.example.ui.theme.SpotifyGreen
+import com.example.ui.theme.StormBlackBg
+import com.example.ui.theme.StormBlackElevated
+import com.example.ui.theme.StormSlateBorder
+import com.example.ui.theme.WhiteSmoke
+import com.example.ui.theme.WhiteSmokeMuted
+import com.example.ui.theme.liquidGlassEffect
 import com.example.util.LyricsEngine
 
+/**
+ * Clean & Complete Song Lyrics Screen.
+ * Displays clean plain-text song lyrics in stanzas matching standard song lyric layouts.
+ * Features a dedicated "Translate" button that translates lyrics in reality, and a
+ * "Get Song Meaning" button that uses Gemini AI to analyze the song's meaning and story.
+ */
 @Composable
 fun LyricsScreen(
     song: Song,
     lyricsData: LyricsData?,
     isLyricsLoading: Boolean,
     selectedLanguage: String,
+    selectedStanzaText: String?,
+    selectedStanzaExplanation: String?,
+    isExplainingStanza: Boolean,
+    songMeaningExplanation: String? = null,
+    isExplainingSongMeaning: Boolean = false,
     currentPositionMs: Long,
     durationMs: Long,
     isPlaying: Boolean,
+    onExplainStanza: (String) -> Unit,
+    onClearStanzaExplanation: () -> Unit,
+    onExplainSongMeaning: (String) -> Unit = {},
+    onClearSongMeaning: () -> Unit = {},
     onSeek: (Long) -> Unit,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -91,81 +110,45 @@ fun LyricsScreen(
     val colorScheme = MaterialTheme.colorScheme
     val languages = listOf("Original", "English", "Spanish", "Japanese", "Korean", "French", "German", "Hindi", "Chinese", "Italian")
     var isDropdownExpanded by remember { mutableStateOf(false) }
+    var showSongMeaningCard by remember { mutableStateOf(false) }
 
-    // Resolve preview-synced lyrics with 100% precision
-    val syncedLines: List<SyncedLyricLine> = remember(lyricsData, song, selectedLanguage) {
-        val baseLines = run {
-            val exact = LyricsEngine.getExactLyrics(song.title, song.artist)
-            if (exact != null) {
-                LyricsEngine.parseSyncedLyrics(exact)
-            } else if (lyricsData != null && lyricsData.syncedLines.isNotEmpty()) {
-                val filtered = lyricsData.syncedLines.filterNot {
-                    it.text.contains("Elizabeth Taylor", ignoreCase = true) ||
-                    it.text.contains("driving through the neon lights", ignoreCase = true)
-                }
-                LyricsEngine.alignSyncedLyricsForPreview(filtered, song.title, 30000L)
-            } else if (lyricsData != null && lyricsData.plainLyrics.isNotBlank()) {
-                LyricsEngine.plainToEstimatedSynced(lyricsData.plainLyrics, 30000L)
-            } else {
-                emptyList()
-            }
-        }
+    // Complete full song lyrics text
+    val fullLyricsText: String = remember(song, lyricsData, selectedLanguage) {
+        val plain = if (lyricsData != null && lyricsData.songId == song.id) lyricsData.plainLyrics else ""
+        val synced = if (lyricsData != null && lyricsData.songId == song.id) lyricsData.syncedLines.joinToString("\n") { it.text } else ""
+        val apiLyrics = if (plain.isNotBlank()) plain else synced
+        val fullExact = LyricsEngine.getFullLyrics(song.title, song.artist).orEmpty()
 
-        if (selectedLanguage == "Original") {
-            baseLines
-        } else {
-            baseLines.map { line ->
-                val cached = lyricsData?.syncedLines?.firstOrNull { it.text == line.text }?.translation
-                val trans = cached ?: LyricsEngine.translateLyricLine(line.text, selectedLanguage)
-                line.copy(translation = trans)
-            }
+        when {
+            selectedLanguage != "Original" && plain.isNotBlank() -> plain
+            apiLyrics.isNotBlank() && apiLyrics.length >= fullExact.length -> apiLyrics
+            fullExact.isNotBlank() -> fullExact
+            apiLyrics.isNotBlank() -> apiLyrics
+            else -> ""
         }
     }
 
-    // Full song lyrics text
-    val fullLyricsText: String = remember(song, lyricsData) {
-        val fullExact = LyricsEngine.getFullLyrics(song.title, song.artist)
-        if (!fullExact.isNullOrBlank()) {
-            fullExact
-        } else if (lyricsData != null && lyricsData.plainLyrics.isNotBlank()) {
-            lyricsData.plainLyrics
-        } else if (syncedLines.isNotEmpty()) {
-            syncedLines.joinToString("\n") { it.text }
-        } else {
-            ""
-        }
+    // Complete metadata (songwriters, publisher, date published, source attribution)
+    val metadata: LyricsEngine.SongMetadata = remember(song, lyricsData) {
+        val defaultMeta = LyricsEngine.getSongMetadata(song.title, song.artist)
+        LyricsEngine.SongMetadata(
+            songwriters = lyricsData?.songwriters?.ifBlank { null }
+                ?: defaultMeta.songwriters.ifBlank { song.artist },
+            publisher = lyricsData?.publisher?.ifBlank { null }
+                ?: defaultMeta.publisher.ifBlank { song.album },
+            publishDate = lyricsData?.publishDate?.ifBlank { null }
+                ?: defaultMeta.publishDate.ifBlank { song.releaseYear },
+            source = lyricsData?.source?.ifBlank { null }
+                ?: defaultMeta.source.ifBlank { "Official Album Credits" }
+        )
     }
 
-    // Active line detection based on exact playback position
-    val activeIndex = remember(currentPositionMs, syncedLines) {
-        if (syncedLines.isEmpty()) -1
-        else {
-            val idx = syncedLines.indexOfLast { currentPositionMs >= it.timeMs }
-            if (idx == -1) 0 else idx
-        }
-    }
-
-    val listState = rememberLazyListState()
-    var isUserInteracting by remember { mutableStateOf(false) }
-    var autoScrollEnabled by remember { mutableStateOf(true) }
-
-    LaunchedEffect(listState.isScrollInProgress) {
-        if (listState.isScrollInProgress) {
-            isUserInteracting = true
-        } else {
-            kotlinx.coroutines.delay(2500L)
-            isUserInteracting = false
-        }
-    }
-
-    LaunchedEffect(activeIndex, autoScrollEnabled, isUserInteracting) {
-        if (autoScrollEnabled && !isUserInteracting && activeIndex in syncedLines.indices) {
-            val target = (activeIndex - 1).coerceAtLeast(0)
-            listState.animateScrollToItem(
-                index = target,
-                scrollOffset = -120
-            )
-        }
+    // Split lyrics into stanzas/sections
+    val stanzas: List<String> = remember(fullLyricsText) {
+        if (fullLyricsText.isBlank()) emptyList()
+        else fullLyricsText.split(Regex("\n\n+"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
     }
 
     Surface(
@@ -178,41 +161,24 @@ fun LyricsScreen(
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp)
         ) {
-            // Top Bar with Back Arrow and Track Info
+            // Header Row with Back Button, Song Title & Subtitle ("Song by [Artist]")
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp),
+                    .padding(top = 12.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
                     onClick = onBack,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(38.dp)
                         .liquidGlassEffect(shape = CircleShape, elevation = 2.dp)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = colorScheme.onSurface,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                // Album Art Thumbnail
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .liquidGlassEffect(shape = RoundedCornerShape(8.dp), elevation = 2.dp)
-                ) {
-                    AsyncImage(
-                        model = song.artworkUrl,
-                        contentDescription = song.album,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
@@ -221,65 +187,74 @@ fun LyricsScreen(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = song.title,
-                        fontSize = 16.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = song.artist,
-                        fontSize = 12.sp,
-                        color = colorScheme.primary,
+                        text = "Song by ${song.artist}",
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFFC084FC),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Controls Row: Translation Language Dropdown & Karaoke Sync Badge
+            // Two Action Buttons Row: [Translate] & [Get Song Meaning]
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
+                    .padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Dropdown Selector: "Translation Language"
-                Box(modifier = Modifier.weight(1f)) {
-                    Row(
+                // Button 1: Translate Button (Only says "Translate")
+                Box {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .liquidGlassEffect(shape = RoundedCornerShape(14.dp), elevation = 3.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (selectedLanguage != "Original") SpotifyGreen.copy(alpha = 0.25f)
+                                else StormBlackElevated
+                            )
+                            .border(
+                                1.dp,
+                                if (selectedLanguage != "Original") SpotifyGreen else StormSlateBorder,
+                                RoundedCornerShape(12.dp)
+                            )
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 isDropdownExpanded = true
                             }
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Column {
-                            Text(
-                                text = "Translation",
-                                fontSize = 10.5.sp,
-                                color = colorScheme.onSurfaceVariant
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Translate,
+                                contentDescription = "Translate",
+                                tint = SpotifyGreen,
+                                modifier = Modifier.size(15.dp)
                             )
                             Text(
-                                text = selectedLanguage,
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colorScheme.onSurface
+                                text = "Translate",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = WhiteSmoke
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Select Language",
+                                tint = WhiteSmokeMuted,
+                                modifier = Modifier.size(14.dp)
                             )
                         }
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "Select Language",
-                            tint = colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
                     }
 
                     DropdownMenu(
@@ -290,9 +265,9 @@ fun LyricsScreen(
                             DropdownMenuItem(
                                 text = {
                                     Text(
-                                        text = lang,
+                                        text = if (lang == "Original") "Original Language" else lang,
                                         fontWeight = if (lang == selectedLanguage) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (lang == selectedLanguage) colorScheme.primary else colorScheme.onSurface
+                                        color = if (lang == selectedLanguage) SpotifyGreen else WhiteSmoke
                                     )
                                 },
                                 onClick = {
@@ -305,146 +280,407 @@ fun LyricsScreen(
                     }
                 }
 
-                // Gemini AI Translation Toggle Button
-                val isGeminiActive = selectedLanguage != "Original"
+                // Button 2: Get Song Meaning Button (Uses Gemini to get overall song meaning)
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (isGeminiActive) Color(0xFF1DB954).copy(alpha = 0.2f) else StormBlackElevated)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (showSongMeaningCard) Color(0xFF8B5CF6).copy(alpha = 0.25f)
+                            else StormBlackElevated
+                        )
                         .border(
                             1.dp,
-                            if (isGeminiActive) Color(0xFF1DB954) else StormSlateBorder,
-                            RoundedCornerShape(14.dp)
+                            if (showSongMeaningCard) Color(0xFFC084FC) else StormSlateBorder,
+                            RoundedCornerShape(12.dp)
                         )
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            if (isGeminiActive) {
-                                onSelectLanguage("Original")
+                            if (showSongMeaningCard && !songMeaningExplanation.isNullOrBlank()) {
+                                showSongMeaningCard = false
+                                onClearSongMeaning()
                             } else {
-                                onSelectLanguage("English") // Toggle to live Gemini translation
+                                showSongMeaningCard = true
+                                onExplainSongMeaning(fullLyricsText)
                             }
                         }
-                        .padding(horizontal = 12.dp, vertical = 9.dp)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Translate,
-                            contentDescription = "Toggle Gemini AI Translation",
-                            tint = if (isGeminiActive) Color(0xFF1DB954) else WhiteSmokeMuted,
-                            modifier = Modifier.size(16.dp)
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Get Song Meaning",
+                            tint = Color(0xFFC084FC),
+                            modifier = Modifier.size(15.dp)
                         )
                         Text(
-                            text = "GEMINI AI",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Black,
-                            color = if (isGeminiActive) Color(0xFF1DB954) else WhiteSmokeMuted,
-                            letterSpacing = 0.6.sp
+                            text = "Get Song Meaning",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = WhiteSmoke
                         )
-                    }
-                }
-
-                // Live Karaoke Progress Status Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(SpotifyGreen.copy(alpha = 0.16f))
-                        .border(1.dp, SpotifyGreen.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-                        .padding(horizontal = 12.dp, vertical = 9.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        KaraokeWaveBars(isPlaying = isPlaying)
-                        Column {
-                            Text(
-                                text = "KARAOKE SYNC",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                color = SpotifyGreen,
-                                letterSpacing = 0.6.sp
-                            )
-                            Text(
-                                text = if (activeIndex >= 0 && activeIndex < syncedLines.size)
-                                    "Line ${activeIndex + 1}/${syncedLines.size}"
-                                else "Ready",
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // Lyrics Content Section
+            // Main Plain Text Lyrics Stanzas List
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                if (isLyricsLoading && syncedLines.isEmpty() && fullLyricsText.isBlank()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = colorScheme.primary)
-                    }
-                } else if (syncedLines.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Lyrics not available for this track",
-                            fontSize = 14.sp,
-                            color = colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    // Preview Synced Karaoke View
-                    val effectiveDuration = if (durationMs > 0) durationMs else 30000L
+                AnimatedContent(
+                    targetState = Triple(isLyricsLoading, stanzas.isEmpty(), stanzas),
+                    label = "lyrics_content_transition"
+                ) { (loading, empty, stanzasList) ->
+                    if (loading && empty) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = colorScheme.primary)
+                        }
+                    } else if (empty) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Lyrics aren't available for this song.",
+                                fontSize = 14.sp,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(20.dp)
+                        ) {
+                            // Optional Overall Song Meaning Card if requested via Gemini
+                            if (showSongMeaningCard) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(Color(0xFF1E1B4B))
+                                            .border(1.dp, Color(0xFFC084FC), RoundedCornerShape(16.dp))
+                                            .padding(16.dp)
+                                    ) {
+                                        Column {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.AutoAwesome,
+                                                        contentDescription = "Gemini AI Meaning",
+                                                        tint = Color(0xFFC084FC),
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "GEMINI AI SONG MEANING",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        color = Color(0xFFC084FC),
+                                                        letterSpacing = 0.8.sp
+                                                    )
+                                                }
 
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .testTag("karaoke_lyrics_list"),
-                        contentPadding = PaddingValues(vertical = 36.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        itemsIndexed(syncedLines, key = { index, line -> "${line.timeMs}_$index" }) { index, line ->
-                            val nextTimeMs = if (index < syncedLines.lastIndex) {
-                                syncedLines[index + 1].timeMs
-                            } else {
-                                (line.timeMs + 4500L).coerceAtMost(effectiveDuration)
+                                                IconButton(
+                                                    onClick = {
+                                                        showSongMeaningCard = false
+                                                        onClearSongMeaning()
+                                                    },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = "Close",
+                                                        tint = WhiteSmokeMuted,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            if (isExplainingSongMeaning) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(16.dp),
+                                                        color = Color(0xFFC084FC),
+                                                        strokeWidth = 2.dp
+                                                    )
+                                                    Text(
+                                                        text = "Analyzing overall song meaning with Gemini AI...",
+                                                        fontSize = 12.5.sp,
+                                                        color = WhiteSmokeMuted
+                                                    )
+                                                }
+                                            } else if (!songMeaningExplanation.isNullOrBlank()) {
+                                                Text(
+                                                    text = songMeaningExplanation,
+                                                    fontSize = 14.sp,
+                                                    color = WhiteSmoke,
+                                                    lineHeight = 20.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
-                            KaraokeLyricLineView(
-                                line = line,
-                                lineIndex = index,
-                                activeIndex = activeIndex,
-                                currentPositionMs = currentPositionMs,
-                                nextTimeMs = nextTimeMs,
-                                isPlaying = isPlaying,
-                                selectedLanguage = selectedLanguage,
-                                onSeek = { targetMs ->
-                                    onSeek(targetMs)
-                                    autoScrollEnabled = true
-                                    isUserInteracting = false
+                            // Plain text stanzas
+                            itemsIndexed(stanzasList, key = { index, stanza -> "${stanza.hashCode()}_$index" }) { index, stanza ->
+                            val isSelected = selectedStanzaText == stanza
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        if (isSelected) {
+                                            onClearStanzaExplanation()
+                                        } else {
+                                            onExplainStanza(stanza)
+                                        }
+                                    }
+                            ) {
+                                Text(
+                                    text = stanza,
+                                    fontSize = 17.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) SpotifyGreen else WhiteSmoke,
+                                    lineHeight = 26.sp
+                                )
+
+                                // Individual stanza AI interpretation if tapped
+                                AnimatedVisibility(
+                                    visible = isSelected,
+                                    enter = expandVertically() + fadeIn(),
+                                    exit = shrinkVertically() + fadeOut()
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 8.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(Color(0xFF151828))
+                                            .border(1.dp, Color(0xFFC084FC).copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                                            .padding(14.dp)
+                                    ) {
+                                        Column {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Lightbulb,
+                                                        contentDescription = "AI Interpretation",
+                                                        tint = Color(0xFFFBBF24),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "GEMINI AI STANZA ANALYSIS",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        color = Color(0xFFFBBF24),
+                                                        letterSpacing = 0.6.sp
+                                                    )
+                                                }
+
+                                                IconButton(
+                                                    onClick = onClearStanzaExplanation,
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = "Close Explanation",
+                                                        tint = WhiteSmokeMuted,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            if (isExplainingStanza) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.size(16.dp),
+                                                        color = Color(0xFFC084FC),
+                                                        strokeWidth = 2.dp
+                                                    )
+                                                    Text(
+                                                        text = "Analyzing stanza meaning with Gemini...",
+                                                        fontSize = 12.5.sp,
+                                                        color = WhiteSmokeMuted
+                                                    )
+                                                }
+                                            } else if (!selectedStanzaExplanation.isNullOrBlank()) {
+                                                Text(
+                                                    text = selectedStanzaExplanation,
+                                                    fontSize = 13.5.sp,
+                                                    color = WhiteSmoke,
+                                                    lineHeight = 19.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
+                            }
+                        }
+
+                        // Metadata Listing: Songwriters, Publisher, Date Published, Source Attribution
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(StormBlackElevated.copy(alpha = 0.6f))
+                                    .border(1.dp, StormSlateBorder, RoundedCornerShape(16.dp))
+                                    .padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = "SONG CREDITS & METADATA",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color(0xFFC084FC),
+                                    letterSpacing = 1.sp
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(StormSlateBorder.copy(alpha = 0.5f))
+                                )
+
+                                // Songwriters
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                        text = "Songwriters: ",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = WhiteSmoke,
+                                        modifier = Modifier.width(115.dp)
+                                    )
+                                    Text(
+                                        text = metadata.songwriters,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        color = WhiteSmokeMuted,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+
+                                // Publisher
+                                if (metadata.publisher.isNotBlank()) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        Text(
+                                            text = "Publisher: ",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = WhiteSmoke,
+                                            modifier = Modifier.width(115.dp)
+                                        )
+                                        Text(
+                                            text = metadata.publisher,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Normal,
+                                            color = WhiteSmokeMuted,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+
+                                // Date Published
+                                if (metadata.publishDate.isNotBlank()) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        Text(
+                                            text = "Date Published: ",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = WhiteSmoke,
+                                            modifier = Modifier.width(115.dp)
+                                        )
+                                        Text(
+                                            text = metadata.publishDate,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Normal,
+                                            color = WhiteSmokeMuted,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+
+                                // Source (place from where it is taken)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                        text = "Source: ",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = WhiteSmoke,
+                                        modifier = Modifier.width(115.dp)
+                                    )
+                                    Text(
+                                        text = metadata.source,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = SpotifyGreen,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Lyrics provided in plain text format for personal and educational use.",
+                                fontSize = 11.5.sp,
+                                color = WhiteSmokeMuted.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(bottom = 20.dp)
                             )
                         }
                     }
                 }
+                }
             }
 
-            // Bottom Player Bar with Liquid Glass
+            // Bottom Player Control Bar
             var isLyricsScrubbing by remember { mutableStateOf(false) }
             var lyricsScrubRatio by remember { mutableFloatStateOf(0f) }
 
@@ -456,12 +692,11 @@ fun LyricsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp)
+                    .padding(bottom = 12.dp)
                     .liquidGlassEffect(shape = RoundedCornerShape(20.dp), elevation = 6.dp)
                     .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Column {
-                    // Progress Slider
                     Slider(
                         value = displayLyricsRatio,
                         onValueChange = { frac ->
@@ -480,7 +715,6 @@ fun LyricsScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // Timers & Controls Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,

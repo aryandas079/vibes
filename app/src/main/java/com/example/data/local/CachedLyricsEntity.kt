@@ -9,5 +9,9 @@ data class CachedLyricsEntity(
     val songTitle: String,
     val artist: String,
     val plainLyrics: String,
+    val songwriters: String = "",
+    val publisher: String = "",
+    val publishDate: String = "",
+    val source: String = "",
     val updatedAt: Long = System.currentTimeMillis()
 )

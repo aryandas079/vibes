@@ -63,6 +63,7 @@ fun MiniPlayer(
     onExpand: () -> Unit,
     onOpenQueue: (() -> Unit)? = null,
     upcomingCount: Int = 0,
+    activeLyricGlimpse: String? = null,
     modifier: Modifier = Modifier
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -81,16 +82,19 @@ fun MiniPlayer(
             (currentPositionMs.toFloat() / effectiveDuration.toFloat()).coerceIn(0f, 1f)
         } else 0f
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(colorScheme.surface)
-                .border(1.dp, colorScheme.outline, RoundedCornerShape(16.dp))
-                .clickable(onClick = onExpand)
-                .testTag("mini_player_container")
+        Column(
+            modifier = Modifier.fillMaxWidth()
         ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(colorScheme.surface)
+                    .border(1.dp, colorScheme.outline, RoundedCornerShape(16.dp))
+                    .clickable(onClick = onExpand)
+                    .testTag("mini_player_container")
+            ) {
             Column {
                 Row(
                     modifier = Modifier
@@ -250,20 +254,6 @@ fun MiniPlayer(
                 }
 
                 // Interactive Progress Bar along the bottom of the Mini Player
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .pointerInput(effectiveDuration) {
-                            detectTapGestures { offset ->
-                                val width = size.width
-                                if (width > 0 && onSeek != null) {
-                                    val ratio = (offset.x / width).coerceIn(0f, 1f)
-                                    onSeek((ratio * effectiveDuration).toLong())
-                                }
-                            }
-                        }
-                ) {
                     LinearProgressIndicator(
                         progress = { progress },
                         modifier = Modifier.fillMaxWidth().height(4.dp),

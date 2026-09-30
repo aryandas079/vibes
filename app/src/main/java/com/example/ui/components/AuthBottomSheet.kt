@@ -83,8 +83,6 @@ fun AuthBottomSheet(
     errorMessage: String?,
     onDismiss: () -> Unit,
     onSignInWithGoogle: (Activity) -> Unit,
-    onQuickSignInAsAryan: (String, String) -> Unit = { _, _ -> },
-    onSignInWithEmail: (String, String) -> Unit = { _, _ -> },
     onSignOut: () -> Unit,
     onSyncNow: () -> Unit,
     favoritesCount: Int = 0,
@@ -92,14 +90,6 @@ fun AuthBottomSheet(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var showGoogleAccountPicker by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-
-    // Auto-open custom accounts selection fallback if Google Sign-In fails or is unavailable
-    androidx.compose.runtime.LaunchedEffect(errorMessage) {
-        if (!errorMessage.isNullOrBlank()) {
-            showGoogleAccountPicker = true
-        }
-    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -130,7 +120,7 @@ fun AuthBottomSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (userSession != null) "Account & Cloud Sync" else if (showGoogleAccountPicker) "Choose Google Account" else "Sign In to Musica",
+                    text = if (userSession != null) "Account & Cloud Sync" else "Sign In to vibes",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = WhiteSmoke
@@ -149,8 +139,8 @@ fun AuthBottomSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Error display if any (suppressed if we show picker)
-            if (!errorMessage.isNullOrBlank() && !showGoogleAccountPicker) {
+            // Error display if any
+            if (!errorMessage.isNullOrBlank()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -180,26 +170,16 @@ fun AuthBottomSheet(
                     onSignOut = onSignOut
                 )
             } else {
-                if (showGoogleAccountPicker) {
-                    GoogleAccountPickerContent(
-                        isLoading = isLoading,
-                        onAccountSelected = { email, name ->
-                            onQuickSignInAsAryan(email, name)
-                        },
-                        onBack = { showGoogleAccountPicker = false }
-                    )
-                } else {
-                    // SIGNED OUT VIEW - Keep only Continue with Google
-                    SignedOutContent(
-                        isLoading = isLoading,
-                        onSignInWithGoogle = {
-                            showGoogleAccountPicker = true
-                        },
-                        onOpenAccountPicker = {
-                            showGoogleAccountPicker = true
+                // SIGNED OUT VIEW - Keep only Continue with Google
+                SignedOutContent(
+                    isLoading = isLoading,
+                    onSignInWithGoogle = {
+                        val activity = context as? Activity
+                        if (activity != null) {
+                            onSignInWithGoogle(activity)
                         }
-                    )
-                }
+                    }
+                )
             }
         }
     }
@@ -415,8 +395,7 @@ private fun SignedInContent(
 @Composable
 private fun SignedOutContent(
     isLoading: Boolean,
-    onSignInWithGoogle: () -> Unit,
-    onOpenAccountPicker: () -> Unit
+    onSignInWithGoogle: () -> Unit
 ) {
     Column {
         Text(
@@ -475,28 +454,6 @@ private fun SignedOutContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Discrete Failsafe Fallback trigger
-        TextButton(
-            onClick = onOpenAccountPicker,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = null,
-                tint = Color(0xFF4285F4),
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Manage Google Accounts",
-                fontSize = 12.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF4285F4)
-            )
-        }
-
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
@@ -506,183 +463,5 @@ private fun SignedOutContent(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
-    }
-}
-
-@Composable
-private fun GoogleAccountPickerContent(
-    isLoading: Boolean,
-    onAccountSelected: (String, String) -> Unit,
-    onBack: () -> Unit
-) {
-    var customEmail by remember { mutableStateOf("") }
-    var customName by remember { mutableStateOf("") }
-    var showCustomFields by remember { mutableStateOf(false) }
-
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "G",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF4285F4)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = "Sign in with Google",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = WhiteSmoke
-            )
-        }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = "Choose a Google account to continue to Musica",
-            fontSize = 13.sp,
-            color = WhiteSmokeMuted
-        )
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        // Account 1: Aryan Das
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(StormBlackElevated)
-                .clickable { onAccountSelected("aryandas.dev@gmail.com", "Aryan Das") }
-                .padding(14.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF3F51B5)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("A", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text("Aryan Das", color = WhiteSmoke, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text("aryandas.dev@gmail.com", color = WhiteSmokeMuted, fontSize = 12.sp)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Account 2: Music Lover
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(StormBlackElevated)
-                .clickable { onAccountSelected("music.lover@gmail.com", "Music Lover") }
-                .padding(14.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFE91E63)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("M", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text("Music Lover", color = WhiteSmoke, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    Text("music.lover@gmail.com", color = WhiteSmokeMuted, fontSize = 12.sp)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Account 3: Custom or Use Another Account
-        if (showCustomFields) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(StormBlackElevated)
-                    .padding(14.dp)
-            ) {
-                OutlinedTextField(
-                    value = customName,
-                    onValueChange = { customName = it },
-                    label = { Text("Google Profile Name") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = WhiteSmoke,
-                        unfocusedTextColor = WhiteSmoke,
-                        focusedBorderColor = Color(0xFF4285F4),
-                        unfocusedBorderColor = StormSlateBorder
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = customEmail,
-                    onValueChange = { customEmail = it },
-                    label = { Text("Google Email Address") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = WhiteSmoke,
-                        unfocusedTextColor = WhiteSmoke,
-                        focusedBorderColor = Color(0xFF4285F4),
-                        unfocusedBorderColor = StormSlateBorder
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        val finalEmail = customEmail.trim().ifBlank { "google.user@gmail.com" }
-                        val finalName = customName.trim().ifBlank { "Google User" }
-                        onAccountSelected(finalEmail, finalName)
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Sign In with Custom Google Account", color = Color.White)
-                }
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(StormBlackElevated)
-                    .clickable { showCustomFields = true }
-                    .padding(14.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Use another account",
-                        tint = WhiteSmokeMuted,
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("Use another Google Account...", color = WhiteSmokeSoft, fontSize = 14.sp)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        TextButton(
-            onClick = onBack,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        ) {
-            Text("Back to Standard Login", color = Color(0xFF4285F4))
-        }
     }
 }

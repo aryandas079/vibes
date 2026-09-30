@@ -745,23 +745,13 @@ fun TrackSequenceItemCard(
                         .clip(RoundedCornerShape(8.dp))
                         .background(Color.White.copy(alpha = 0.05f))
                 ) {
-                    if (track.resolvedSong?.artworkUrl != null) {
-                        AsyncImage(
-                            model = track.resolvedSong.artworkUrl,
-                            contentDescription = track.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.GraphicEq,
-                            contentDescription = null,
-                            tint = Color(0xFF71717A),
-                            modifier = Modifier
-                                .size(24.dp)
-                                .align(Alignment.Center)
-                        )
-                    }
+                    MusicaImage(
+                        model = track.resolvedSong?.artworkUrl,
+                        contentDescription = track.title,
+                        titlePlaceholder = track.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
