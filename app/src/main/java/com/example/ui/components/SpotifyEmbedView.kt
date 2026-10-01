@@ -52,7 +52,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import com.example.util.VibesHaptics
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -90,6 +92,7 @@ fun SpotifyEmbedDialog(
     modifier: Modifier = Modifier
 ) {
     val view = LocalView.current
+    val context = LocalContext.current
     val effectiveDuration = if (durationMs > 0L) durationMs else 30000L
 
     var isScrubbing by remember { mutableStateOf(false) }
@@ -341,6 +344,7 @@ fun SpotifyEmbedDialog(
                         onValueChange = { frac ->
                             isScrubbing = true
                             scrubPositionRatio = frac
+                            VibesHaptics.seekTick(context, view)
                         },
                         onValueChangeFinished = {
                             isScrubbing = false
@@ -399,7 +403,7 @@ fun SpotifyEmbedDialog(
                                 .background(Color(0xFF242424))
                                 .border(1.dp, Color(0xFF333333), CircleShape)
                                 .clickable {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    VibesHaptics.strongClick(context, view)
                                     onSeekBy(-5000L)
                                 },
                             contentAlignment = Alignment.Center
@@ -420,7 +424,7 @@ fun SpotifyEmbedDialog(
                                 .background(Color(0xFF242424))
                                 .border(1.dp, Color(0xFF333333), CircleShape)
                                 .clickable {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    VibesHaptics.mediumClick(context, view)
                                     onSeek(0L)
                                 },
                             contentAlignment = Alignment.Center
@@ -440,7 +444,7 @@ fun SpotifyEmbedDialog(
                                 .clip(CircleShape)
                                 .background(SpotifyGreenBrand)
                                 .clickable {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    VibesHaptics.playPause(context, view)
                                     onTogglePlayPause()
                                 },
                             contentAlignment = Alignment.Center
@@ -469,7 +473,7 @@ fun SpotifyEmbedDialog(
                                 .background(Color(0xFF242424))
                                 .border(1.dp, Color(0xFF333333), CircleShape)
                                 .clickable {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    VibesHaptics.strongClick(context, view)
                                     onSeekBy(5000L)
                                 },
                             contentAlignment = Alignment.Center

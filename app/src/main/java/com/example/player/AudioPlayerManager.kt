@@ -3,6 +3,7 @@ package com.example.player
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.PowerManager
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.net.Uri
@@ -214,6 +215,11 @@ class AudioPlayerManager(private val context: Context) {
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
+                try {
+                    setWakeMode(context, PowerManager.PARTIAL_WAKE_LOCK)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
                 if (secureUrl.startsWith("http://") || secureUrl.startsWith("https://")) {
                     setDataSource(context, Uri.parse(secureUrl))
                 } else {
@@ -352,7 +358,7 @@ class AudioPlayerManager(private val context: Context) {
                 player.pause()
                 _isPlaying.value = false
                 stopProgressTicker()
-                stopBackgroundService()
+                startBackgroundService()
             } else {
                 player.start()
                 _isPlaying.value = true
@@ -372,6 +378,7 @@ class AudioPlayerManager(private val context: Context) {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+        startBackgroundService()
     }
 
     fun seekBy(deltaMs: Long) {

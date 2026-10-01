@@ -93,6 +93,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Path
+import com.example.util.VibesHaptics
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlin.math.sin
@@ -359,6 +360,7 @@ private fun NowPlayingViewContent(
     val colorScheme = MaterialTheme.colorScheme
     val effectiveDuration = if (durationMs > 0) durationMs else 30000L
     val view = LocalView.current
+    val context = LocalContext.current
 
     var isScrubbing by remember { mutableStateOf(false) }
     var scrubPositionRatio by remember { mutableFloatStateOf(0f) }
@@ -462,7 +464,10 @@ private fun NowPlayingViewContent(
                 }
 
                 IconButton(
-                    onClick = { onToggleFavorite?.invoke() },
+                    onClick = {
+                        VibesHaptics.success(context, view)
+                        onToggleFavorite?.invoke()
+                    },
                     modifier = Modifier
                         .size(42.dp)
                         .liquidGlassEffect(shape = CircleShape, elevation = 2.dp)
@@ -506,6 +511,7 @@ private fun NowPlayingViewContent(
                         onValueChange = { frac ->
                             isScrubbing = true
                             scrubPositionRatio = frac
+                            VibesHaptics.seekTick(context, view)
                         },
                         onValueChangeFinished = {
                             isScrubbing = false
@@ -551,7 +557,7 @@ private fun NowPlayingViewContent(
                     ) {
                         IconButton(
                             onClick = {
-                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                VibesHaptics.mediumClick(context, view)
                                 onToggleShuffle?.invoke()
                             },
                             modifier = Modifier
@@ -568,7 +574,7 @@ private fun NowPlayingViewContent(
 
                         IconButton(
                             onClick = {
-                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                VibesHaptics.strongClick(context, view)
                                 onPrevious?.invoke()
                             },
                             modifier = Modifier
@@ -597,7 +603,7 @@ private fun NowPlayingViewContent(
                                 )
                                 .border(1.5.dp, WhiteSmoke.copy(alpha = 0.3f), CircleShape)
                                 .clickable {
-                                    view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                    VibesHaptics.playPause(context, view)
                                     onTogglePlayPause()
                                 }
                                 .testTag("player_play_pause_button"),
@@ -621,7 +627,7 @@ private fun NowPlayingViewContent(
 
                         IconButton(
                             onClick = {
-                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                VibesHaptics.strongClick(context, view)
                                 onNext?.invoke()
                             },
                             modifier = Modifier
@@ -638,7 +644,7 @@ private fun NowPlayingViewContent(
 
                         IconButton(
                             onClick = {
-                                view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                VibesHaptics.mediumClick(context, view)
                                 onToggleLoop?.invoke()
                             },
                             modifier = Modifier

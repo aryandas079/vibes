@@ -20,6 +20,8 @@ data class ItunesResponse(
 @JsonClass(generateAdapter = true)
 data class ItunesTrackItem(
     val trackId: Long? = null,
+    val collectionId: Long? = null,
+    val wrapperType: String? = null,
     val trackName: String? = null,
     val artistName: String? = null,
     val collectionName: String? = null,
@@ -28,7 +30,9 @@ data class ItunesTrackItem(
     val previewUrl: String? = null,
     val trackTimeMillis: Long? = null,
     val primaryGenreName: String? = null,
-    val releaseDate: String? = null
+    val releaseDate: String? = null,
+    val trackCount: Int? = null,
+    val trackNumber: Int? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -63,7 +67,8 @@ data class DeezerTrackItem(
     val preview: String? = null,
     val duration: Long? = null,
     val artist: DeezerArtistShort? = null,
-    val album: DeezerAlbumShort? = null
+    val album: DeezerAlbumShort? = null,
+    val rank: Long? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -135,6 +140,12 @@ interface DeezerApi {
         @Path("id") id: Long,
         @Query("limit") limit: Int = 50
     ): DeezerTrackSearchResponse
+
+    @GET("album/{id}/tracks")
+    suspend fun getAlbumTracks(
+        @Path("id") id: Long,
+        @Query("limit") limit: Int = 100
+    ): DeezerTrackSearchResponse
 }
 
 interface ItunesApi {
@@ -144,6 +155,21 @@ interface ItunesApi {
         @Query("country") country: String = "US",
         @Query("entity") entity: String = "song",
         @Query("limit") limit: Int = 30
+    ): ItunesResponse
+
+    @GET("search")
+    suspend fun searchAlbums(
+        @Query("term") term: String,
+        @Query("country") country: String = "US",
+        @Query("entity") entity: String = "album",
+        @Query("limit") limit: Int = 10
+    ): ItunesResponse
+
+    @GET("lookup")
+    suspend fun lookupAlbumTracks(
+        @Query("id") collectionId: Long,
+        @Query("entity") entity: String = "song",
+        @Query("limit") limit: Int = 100
     ): ItunesResponse
 }
 

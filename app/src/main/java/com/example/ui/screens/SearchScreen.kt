@@ -1,12 +1,9 @@
 package com.example.ui.screens
 
-import android.content.Intent
-import android.net.Uri
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,28 +26,18 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -58,7 +45,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import com.example.ui.components.SearchableTopBar
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,33 +56,46 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.components.MusicaImage
+import coil.compose.AsyncImage
 import com.example.model.Album
 import com.example.model.Artist
 import com.example.model.Song
+import com.example.ui.components.MusicaImage
+import com.example.ui.components.SearchableTopBar
 import com.example.ui.theme.SpotifyGreen
-import com.example.ui.theme.StormBlackBg
+import com.example.ui.theme.StormBlackCard
 import com.example.ui.theme.StormBlackElevated
+import com.example.ui.theme.StormSlateBorder
 import com.example.ui.theme.WhiteSmoke
 import com.example.ui.theme.WhiteSmokeMuted
 import com.example.ui.theme.WhiteSmokeSoft
 import com.example.ui.theme.liquidGlassEffect
+import com.example.util.VibesHaptics
 
+/**
+ * Cleaned and high-performance Search Screen for Vibes.
+ * Features:
+ * - Fully functioning Google Voice Search button
+ * - Shows up to 5 previous searches with cross 'X' deletion buttons when search bar is clicked
+ * - Real-time songs ranked in strictly descending order of views/streams on Spotify
+ * - Cleaned-up, clutter-free layout with smooth Spotify-grade ergonomics
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     query: String,
     searchResults: List<Song>,
+    searchHistory: List<String> = emptyList(),
+    onRemoveSearchHistoryItem: (String) -> Unit = {},
+    onClearSearchHistory: () -> Unit = {},
     catalogSongs: List<Song> = emptyList(),
     matchedArtist: Artist? = null,
     matchedArtists: List<Artist> = emptyList(),
@@ -112,45 +112,43 @@ fun SearchScreen(
     onToggleFavorite: (Song) -> Unit,
     onToggleFollowArtist: ((Artist) -> Unit)? = null,
     onArtistClick: ((String) -> Unit)? = null,
+    onOpenAlbum: ((Album) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val view = LocalView.current
     val colorScheme = MaterialTheme.colorScheme
-    var selectedFilterTab by remember { mutableStateOf("All") }
-    val filterTabs = listOf("All", "Artists", "Albums", "Songs")
 
-    val effectiveArtists = remember(matchedArtists, matchedArtist) {
-        if (matchedArtists.isNotEmpty()) {
-            matchedArtists
-        } else if (matchedArtist != null) {
-            listOf(matchedArtist)
-        } else {
-            emptyList()
-        }
+    // Track search bar interaction state
+    var isSearchFocused by remember { mutableStateOf(false) }
+
+    // Take exactly up to 5 previous searches
+    val recentFiveSearches = remember(searchHistory) {
+        searchHistory.filter { it.isNotBlank() }.distinct().take(5)
     }
 
-    val effectiveAlbums = remember(matchedAlbums, matchedAlbum, searchResults) {
-        if (matchedAlbums.isNotEmpty()) {
-            matchedAlbums
-        } else if (matchedAlbum != null) {
-            listOf(matchedAlbum)
-        } else {
-            // Group any song search results into albums if available
-            val grouped = searchResults.filter { it.album.isNotBlank() }.groupBy { it.album }
-            grouped.map { (albumTitle, songs) ->
-                val first = songs.first()
-                Album(
-                    id = first.id,
-                    title = albumTitle,
-                    artist = first.artist,
-                    artworkUrl = first.artworkUrl,
-                    releaseYear = first.releaseYear,
-                    genre = first.genre,
-                    trackCount = songs.size,
-                    tracks = songs,
-                    topFeaturedSongs = songs.take(3)
-                )
+    // List searched songs in strictly descending order of views on Spotify
+    val songsSortedBySpotifyViews = remember(searchResults) {
+        searchResults.sortedByDescending { it.spotifyStreams }
+    }
+
+    val effectiveArtists = remember(matchedArtists, matchedArtist) {
+        if (matchedArtists.isNotEmpty()) matchedArtists
+        else if (matchedArtist != null) listOf(matchedArtist)
+        else emptyList()
+    }
+
+    val effectiveAlbums = remember(matchedAlbums, matchedAlbum) {
+        val list = mutableListOf<Album>()
+        if (matchedAlbum != null) {
+            list.add(matchedAlbum)
+        }
+        for (a in matchedAlbums) {
+            if (list.none { it.title.equals(a.title, ignoreCase = true) && it.artist.equals(a.artist, ignoreCase = true) }) {
+                list.add(a)
             }
         }
+        list
     }
 
     Surface(
@@ -161,66 +159,83 @@ fun SearchScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 18.dp)
         ) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Clean Header: "Search" Title
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Search",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = WhiteSmoke,
+                        letterSpacing = (-0.6).sp
+                    )
+                    Text(
+                        text = "Find songs, artists & global Spotify hits",
+                        fontSize = 12.5.sp,
+                        color = WhiteSmokeMuted,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // Spotify Powered Badge
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SpotifyGreen.copy(alpha = 0.15f))
+                        .border(1.dp, SpotifyGreen.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Equalizer,
+                        contentDescription = "Spotify Views",
+                        tint = SpotifyGreen,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Spotify Views",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SpotifyGreen
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Large Title: "Search"
-            Text(
-                text = "Search",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorScheme.onBackground,
-                letterSpacing = (-0.5).sp
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Searchable TopBar with External Music API metadata integration
+            // Upgraded Searchable TopBar with Google Voice Search
             SearchableTopBar(
                 query = query,
-                onQueryChanged = onQueryChanged,
-                searchResults = searchResults,
+                onQueryChanged = { newQuery ->
+                    onQueryChanged(newQuery)
+                },
+                searchResults = songsSortedBySpotifyViews,
                 isSearching = isSearching,
-                onPlaySong = { song -> onPlaySong(song, searchResults) },
+                onPlaySong = { song -> onPlaySong(song, songsSortedBySpotifyViews) },
                 onOpenSongDetails = onOpenSongDetails,
+                onFocusChanged = { focused ->
+                    isSearchFocused = focused
+                },
+                onClick = {
+                    isSearchFocused = true
+                },
                 placeholder = "Search songs, artists, albums..."
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
 
-
-            // Quick Filter Tabs (when active search query exists)
-            if (query.isNotBlank()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(filterTabs) { tab ->
-                        val isSelected = selectedFilterTab == tab
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(
-                                    if (isSelected) colorScheme.primary
-                                    else colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                )
-                                .clickable { selectedFilterTab = tab }
-                                .padding(horizontal = 14.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                text = tab,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) colorScheme.onPrimary else colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            // Search Content / Results
+            // Content Area
             when {
+                // 1. Loading State
                 isSearching -> {
                     Box(
                         modifier = Modifier
@@ -228,33 +243,417 @@ fun SearchScreen(
                             .weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = colorScheme.primary)
-                            Spacer(modifier = Modifier.height(12.dp))
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = SpotifyGreen,
+                                strokeWidth = 2.5.dp,
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
                             Text(
-                                text = "Searching music catalog...",
-                                fontSize = 13.sp,
-                                color = colorScheme.onSurfaceVariant
+                                text = "Searching & ranking by Spotify views...",
+                                fontSize = 13.5.sp,
+                                color = WhiteSmokeMuted,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
                 }
 
-                query.isBlank() -> {
-                    // Empty Search suggestions
+                // 2. Active Query Results (Sorted by Spotify Views Descending)
+                query.isNotBlank() -> {
+                    if (songsSortedBySpotifyViews.isEmpty() && effectiveArtists.isEmpty() && effectiveAlbums.isEmpty()) {
+                        // Empty Results
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .clip(CircleShape)
+                                        .background(StormBlackElevated)
+                                        .border(1.dp, StormSlateBorder, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = WhiteSmokeMuted,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = "No results found for \"$query\"",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = WhiteSmoke,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Try searching by song title, artist name, or genre",
+                                    fontSize = 13.sp,
+                                    color = WhiteSmokeMuted,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        // Clean Results List
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentPadding = PaddingValues(bottom = 120.dp, top = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Matching Artists (Compact row)
+                            if (effectiveArtists.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        text = "Matching Artists",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = WhiteSmokeSoft
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        items(effectiveArtists) { artistItem ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(20.dp))
+                                                    .background(StormBlackElevated)
+                                                    .border(1.dp, StormSlateBorder, RoundedCornerShape(20.dp))
+                                                    .clickable {
+                                                        VibesHaptics.strongClick(context, view)
+                                                        onArtistClick?.invoke(artistItem.name)
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                if (!artistItem.imageUrl.isNullOrBlank()) {
+                                                    AsyncImage(
+                                                        model = artistItem.imageUrl,
+                                                        contentDescription = artistItem.name,
+                                                        contentScale = ContentScale.Crop,
+                                                        modifier = Modifier
+                                                            .size(26.dp)
+                                                            .clip(CircleShape)
+                                                    )
+                                                } else {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(26.dp)
+                                                            .clip(CircleShape)
+                                                            .background(SpotifyGreen.copy(alpha = 0.2f)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Person,
+                                                            contentDescription = null,
+                                                            tint = SpotifyGreen,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = artistItem.name,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = WhiteSmoke
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                            }
+
+                            // Matching Albums Section (Showcasing Top 5 Songs & Full Tracklist Access)
+                            if (effectiveAlbums.isNotEmpty()) {
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Album,
+                                                contentDescription = null,
+                                                tint = Color(0xFFA855F7),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Albums",
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = WhiteSmoke
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color(0xFFA855F7).copy(alpha = 0.2f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "Full Tracklist Available",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFC084FC)
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Primary Showcase Album with Top 5 Songs
+                                    val primaryAlbum = effectiveAlbums.first()
+                                    SearchAlbumShowcaseCard(
+                                        album = primaryAlbum,
+                                        currentPlayingId = currentPlayingId,
+                                        isPlaying = isPlaying,
+                                        onPlaySong = onPlaySong,
+                                        onOpenAlbum = { album ->
+                                            VibesHaptics.strongClick(context, view)
+                                            onOpenAlbum?.invoke(album)
+                                        }
+                                    )
+
+                                    // Secondary Matching Albums
+                                    if (effectiveAlbums.size > 1) {
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = "More Matching Albums",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = WhiteSmokeMuted
+                                        )
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        LazyRow(
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            items(effectiveAlbums.drop(1)) { album ->
+                                                CompactAlbumSearchCard(
+                                                    album = album,
+                                                    onOpenAlbum = {
+                                                        VibesHaptics.strongClick(context, view)
+                                                        onOpenAlbum?.invoke(album)
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                }
+                            }
+
+                            // Songs Section Header
+                            if (songsSortedBySpotifyViews.isNotEmpty()) {
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "Top Songs by Spotify Views",
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = WhiteSmoke
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(SpotifyGreen.copy(alpha = 0.2f))
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Descending",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = SpotifyGreen
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "${songsSortedBySpotifyViews.size} tracks",
+                                            fontSize = 12.sp,
+                                            color = WhiteSmokeMuted
+                                        )
+                                    }
+                                }
+
+                                // Song Items strictly in descending order of Spotify views
+                                itemsIndexed(songsSortedBySpotifyViews, key = { _, s -> s.id }) { index, song ->
+                                    val isCurrent = currentPlayingId == song.id
+                                    val isFav = favoriteSongs.any { it.id == song.id }
+
+                                    CleanSearchSongRow(
+                                        song = song,
+                                        rankIndex = index + 1,
+                                        isCurrent = isCurrent,
+                                        isPlaying = isPlaying && isCurrent,
+                                        isFav = isFav,
+                                        onPlay = {
+                                            VibesHaptics.playPause(context, view)
+                                            onPlaySong(song, songsSortedBySpotifyViews)
+                                        },
+                                        onOpenDetails = {
+                                            VibesHaptics.mediumClick(context, view)
+                                            onOpenSongDetails(song)
+                                        },
+                                        onToggleFavorite = {
+                                            VibesHaptics.strongClick(context, view)
+                                            onToggleFavorite(song)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Empty Search / Search Bar Clicked: Show 5 Previous Searches with Cross Button
+                else -> {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        contentPadding = PaddingValues(bottom = 120.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        contentPadding = PaddingValues(bottom = 120.dp, top = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
+                        // 5 PREVIOUS SEARCHES WITH CROSS BUTTON (Requested Feature)
+                        if (recentFiveSearches.isNotEmpty()) {
+                            item {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(StormBlackElevated)
+                                        .border(1.dp, StormSlateBorder, RoundedCornerShape(16.dp))
+                                        .padding(14.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.History,
+                                                contentDescription = "Recent Searches",
+                                                tint = SpotifyGreen,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Previous Searches",
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = WhiteSmoke
+                                            )
+                                        }
+
+                                        TextButton(
+                                            onClick = {
+                                                VibesHaptics.mediumClick(context, view)
+                                                onClearSearchHistory()
+                                            },
+                                            contentPadding = PaddingValues(0.dp)
+                                        ) {
+                                            Text(
+                                                text = "Clear all",
+                                                fontSize = 11.5.sp,
+                                                color = WhiteSmokeMuted,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Render up to 5 previous searches, each with its cross 'X' button
+                                    recentFiveSearches.forEach { searchItem ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable {
+                                                    VibesHaptics.strongClick(context, view)
+                                                    onQueryChanged(searchItem)
+                                                }
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Search,
+                                                    contentDescription = null,
+                                                    tint = WhiteSmokeMuted,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Text(
+                                                    text = searchItem,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = WhiteSmoke,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+
+                                            // Cross 'X' Button to remove this previous search
+                                            IconButton(
+                                                onClick = {
+                                                    VibesHaptics.strongClick(context, view)
+                                                    onRemoveSearchHistoryItem(searchItem)
+                                                },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Remove search",
+                                                    tint = WhiteSmokeMuted,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Browse Top Trending Genres (Clean & Modern)
                         item {
                             Text(
-                                text = "Browse Genres",
+                                text = "Explore Genres",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = colorScheme.onBackground
+                                color = WhiteSmoke
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             val genreList = listOf(
@@ -263,7 +662,7 @@ fun SearchScreen(
                                 "R&B" to Color(0xFF8B5CF6),
                                 "Rock" to Color(0xFFEF4444),
                                 "Bollywood" to Color(0xFFEC4899),
-                                "K-Pop" to Color(0xFF06B6D4),
+                                "EDM" to Color(0xFF06B6D4),
                                 "Latin" to Color(0xFF10B981),
                                 "Indie" to Color(0xFF3B82F6)
                             )
@@ -271,10 +670,13 @@ fun SearchScreen(
                                 items(genreList) { (genreName, genreColor) ->
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(16.dp))
+                                            .clip(RoundedCornerShape(14.dp))
                                             .background(genreColor.copy(alpha = 0.2f))
-                                            .border(1.dp, genreColor.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
-                                            .clickable { onQueryChanged(genreName) }
+                                            .border(1.dp, genreColor.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
+                                            .clickable {
+                                                VibesHaptics.strongClick(context, view)
+                                                onQueryChanged(genreName)
+                                            }
                                             .padding(horizontal = 16.dp, vertical = 10.dp)
                                     ) {
                                         Text(
@@ -288,24 +690,30 @@ fun SearchScreen(
                             }
                         }
 
+                        // Popular Artists Quick Discovery
                         item {
                             Text(
-                                text = "Popular Artists to Search",
-                                fontSize = 15.sp,
+                                text = "Top Global Artists",
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = colorScheme.onBackground
+                                color = WhiteSmoke
                             )
                             Spacer(modifier = Modifier.height(10.dp))
-                            val popularArtistChips = listOf(
+                            val topArtists = listOf(
                                 "Taylor Swift", "The Weeknd", "Billie Eilish",
-                                "Ed Sheeran", "Drake", "Coldplay", "Sabrina Carpenter"
+                                "Bruno Mars", "Coldplay", "Drake", "Sabrina Carpenter", "Ed Sheeran"
                             )
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(popularArtistChips) { artistName ->
+                                items(topArtists) { artistName ->
                                     Box(
                                         modifier = Modifier
-                                            .liquidGlassEffect(shape = RoundedCornerShape(16.dp), elevation = 2.dp)
-                                            .clickable { onQueryChanged(artistName) }
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(StormBlackElevated)
+                                            .border(1.dp, StormSlateBorder, RoundedCornerShape(20.dp))
+                                            .clickable {
+                                                VibesHaptics.strongClick(context, view)
+                                                onQueryChanged(artistName)
+                                            }
                                             .padding(horizontal = 14.dp, vertical = 8.dp)
                                     ) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -313,265 +721,18 @@ fun SearchScreen(
                                                 imageVector = Icons.Default.Person,
                                                 contentDescription = null,
                                                 tint = SpotifyGreen,
-                                                modifier = Modifier.size(16.dp)
+                                                modifier = Modifier.size(15.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
                                                 text = artistName,
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Medium,
-                                                color = colorScheme.onSurface
+                                                color = WhiteSmoke
                                             )
                                         }
                                     }
                                 }
-                            }
-                        }
-
-                        item {
-                            Text(
-                                text = "Popular Albums to Explore",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colorScheme.onBackground
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            val popularAlbumChips = listOf(
-                                "Midnights", "Starboy", "Hit Me Hard and Soft",
-                                "Divide", "1989 (Taylor's Version)", "Music of the Spheres"
-                            )
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(popularAlbumChips) { albumName ->
-                                    Box(
-                                        modifier = Modifier
-                                            .liquidGlassEffect(shape = RoundedCornerShape(16.dp), elevation = 2.dp)
-                                            .clickable { onQueryChanged(albumName) }
-                                            .padding(horizontal = 14.dp, vertical = 8.dp)
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.Album,
-                                                contentDescription = null,
-                                                tint = colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = albumName,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = colorScheme.onSurface
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        item {
-                            Spacer(modifier = Modifier.height(20.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 20.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = null,
-                                        tint = colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                        modifier = Modifier.size(48.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = "Search for artists, albums, or tracks",
-                                        fontSize = 13.sp,
-                                        color = colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                searchResults.isEmpty() && effectiveArtists.isEmpty() && effectiveAlbums.isEmpty() -> {
-                    // No results
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "No results found for \"$query\"",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                text = "Try searching by a different artist, album, or song title",
-                                fontSize = 13.sp,
-                                color = colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                else -> {
-                    // Rich Results View
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentPadding = PaddingValues(bottom = 120.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // 1. Matched Artist Cards (with small, high-density Top 3 tracks list directly clickable for immediate playback)
-                        if ((selectedFilterTab == "All" || selectedFilterTab == "Artists") && effectiveArtists.isNotEmpty()) {
-                            val artistsToShow = if (selectedFilterTab == "All") effectiveArtists.take(2) else effectiveArtists
-
-                            if (selectedFilterTab == "Artists" || (selectedFilterTab == "All" && artistsToShow.size > 1)) {
-                                item {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                imageVector = Icons.Default.Person,
-                                                contentDescription = null,
-                                                tint = SpotifyGreen,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = if (artistsToShow.size == 1) "Featured Artist" else "Matching Artists",
-                                                fontSize = 17.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = colorScheme.onBackground
-                                            )
-                                        }
-                                        if (effectiveArtists.size > 2 && selectedFilterTab == "All") {
-                                            Text(
-                                                text = "${effectiveArtists.size} total",
-                                                fontSize = 12.sp,
-                                                color = SpotifyGreen,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.clickable { selectedFilterTab = "Artists" }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            itemsIndexed(artistsToShow, key = { index, art -> "${art.name}_$index" }) { _, artistItem ->
-                                val isFollowed = followedArtists.any { it.name.equals(artistItem.name, ignoreCase = true) } || artistItem.isFollowed
-                                ArtistRichCard(
-                                    artist = artistItem,
-                                    isFollowed = isFollowed,
-                                    currentPlayingId = currentPlayingId,
-                                    isPlaying = isPlaying,
-                                    favoriteSongs = favoriteSongs,
-                                    onPlaySong = onPlaySong,
-                                    onOpenSongDetails = onOpenSongDetails,
-                                    onToggleFavorite = onToggleFavorite,
-                                    onToggleFollow = { onToggleFollowArtist?.invoke(artistItem) },
-                                    onArtistClick = { onArtistClick?.invoke(artistItem.name) }
-                                )
-                            }
-                        }
-
-                        // 2. Rich Album Display Cards highlighting cover art and complete tracklist
-                        if ((selectedFilterTab == "All" || selectedFilterTab == "Albums") && effectiveAlbums.isNotEmpty()) {
-                            val albumsToShow = if (selectedFilterTab == "All") effectiveAlbums.take(2) else effectiveAlbums
-
-                            item {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Album,
-                                            contentDescription = null,
-                                            tint = SpotifyGreen,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text(
-                                            text = if (albumsToShow.size == 1) "Featured Album" else "Matching Albums",
-                                            fontSize = 17.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = colorScheme.onBackground
-                                        )
-                                    }
-                                    if (effectiveAlbums.size > 2 && selectedFilterTab == "All") {
-                                        Text(
-                                            text = "${effectiveAlbums.size} total",
-                                            fontSize = 12.sp,
-                                            color = SpotifyGreen,
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.clickable { selectedFilterTab = "Albums" }
-                                        )
-                                    }
-                                }
-                            }
-
-                            itemsIndexed(albumsToShow, key = { index, alb -> "${alb.title}_${alb.artist}_$index" }) { _, albumItem ->
-                                AlbumDisplayCard(
-                                    album = albumItem,
-                                    currentPlayingId = currentPlayingId,
-                                    isPlaying = isPlaying,
-                                    favoriteSongs = favoriteSongs,
-                                    onPlaySong = onPlaySong,
-                                    onOpenSongDetails = onOpenSongDetails,
-                                    onToggleFavorite = onToggleFavorite,
-                                    onArtistClick = onArtistClick
-                                )
-                            }
-                        }
-
-                        // 3. Songs Section Header (when showing all results or songs tab)
-                        if ((selectedFilterTab == "All" || selectedFilterTab == "Songs") && searchResults.isNotEmpty()) {
-                            item {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = if (effectiveArtists.isNotEmpty() || effectiveAlbums.isNotEmpty()) "All Track Results" else "Top Matches",
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = colorScheme.onBackground
-                                    )
-                                    Text(
-                                        text = "${searchResults.size} tracks",
-                                        fontSize = 12.sp,
-                                        color = colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            itemsIndexed(searchResults, key = { _, song -> song.id }) { index, song ->
-                                val isFav = favoriteSongs.any { it.id == song.id }
-                                val isCurrent = currentPlayingId == song.id
-
-                                SearchSongRow(
-                                    song = song,
-                                    index = index + 1,
-                                    isCurrent = isCurrent,
-                                    isFav = isFav,
-                                    onPlay = { onPlaySong(song, searchResults) },
-                                    onOpenDetails = { onOpenSongDetails(song) },
-                                    onToggleFavorite = { onToggleFavorite(song) }
-                                )
                             }
                         }
                     }
@@ -582,816 +743,478 @@ fun SearchScreen(
 }
 
 /**
- * Rich Artist Card displaying verified avatar, follower badge, Follow/Unfollow toggle,
- * and a small, high-density list of their 'Top 3' tracks directly clickable for immediate playback,
- * plus the discography navigation link below.
+ * Ultra-clean search song row with prominent Spotify Views badge,
+ * ranking index (#1, #2, etc.), tactile controls, and Spotify Green accents.
  */
 @Composable
-fun ArtistRichCard(
-    artist: Artist,
-    isFollowed: Boolean,
-    currentPlayingId: Long?,
-    isPlaying: Boolean,
-    favoriteSongs: List<Song>,
-    onPlaySong: (Song, List<Song>) -> Unit,
-    onOpenSongDetails: (Song) -> Unit,
-    onToggleFavorite: (Song) -> Unit,
-    onToggleFollow: () -> Unit,
-    onArtistClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colorScheme = MaterialTheme.colorScheme
-    val topThreeSongs = artist.topSongs.take(3)
-    val remainingSongs = artist.topSongs.drop(3)
-    val isArtistActive = currentPlayingId != null && artist.topSongs.any { it.id == currentPlayingId }
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .liquidGlassEffect(
-                shape = RoundedCornerShape(22.dp),
-                elevation = if (isArtistActive) 8.dp else 5.dp
-            )
-            .border(
-                width = 1.dp,
-                color = if (isArtistActive) WhiteSmoke.copy(alpha = 0.5f) else WhiteSmoke.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(22.dp)
-            )
-            .padding(16.dp)
-    ) {
-        // Artist Header Row
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .clip(CircleShape)
-                    .border(2.dp, SpotifyGreen.copy(alpha = 0.75f), CircleShape)
-                    .clickable { onArtistClick() }
-            ) {
-                MusicaImage(
-                    model = artist.imageUrl,
-                    contentDescription = artist.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                    titlePlaceholder = artist.name
-                )
-            }
-
-            Spacer(modifier = Modifier.width(14.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = artist.name,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.Default.Verified,
-                        contentDescription = "Verified Artist",
-                        tint = colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${artist.genre} • ${artist.topHitsCount}",
-                    fontSize = 12.sp,
-                    color = colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Follow Button (Saves directly to Room DB)
-            Button(
-                onClick = onToggleFollow,
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isFollowed) colorScheme.surfaceVariant else WhiteSmoke,
-                    contentColor = if (isFollowed) colorScheme.onSurfaceVariant else StormBlackBg
-                ),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                modifier = Modifier.testTag("follow_artist_button")
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (isFollowed) Icons.Default.Check else Icons.Default.PersonAdd,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (isFollowed) "Following" else "Follow",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Top 3 Tracks Header with Quick "Play All" Pill Button
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Equalizer,
-                    contentDescription = null,
-                    tint = SpotifyGreen,
-                    modifier = Modifier.size(15.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Top 3 Tracks",
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(SpotifyGreen.copy(alpha = 0.15f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "Instant Play",
-                        fontSize = 9.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SpotifyGreen
-                    )
-                }
-            }
-
-            if (topThreeSongs.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(SpotifyGreen.copy(alpha = 0.16f))
-                        .clickable {
-                            onPlaySong(topThreeSongs.first(), artist.topSongs)
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = "Play All Top 3",
-                        tint = SpotifyGreen,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
-                    Text(
-                        text = "Play All",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SpotifyGreen
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(7.dp))
-
-        if (topThreeSongs.isEmpty()) {
-            Text(
-                text = "Loading top tracks...",
-                fontSize = 12.sp,
-                color = colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 6.dp)
-            )
-        } else {
-            // High-density Top 3 List
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                topThreeSongs.forEachIndexed { index, song ->
-                    val isFav = favoriteSongs.any { it.id == song.id }
-                    val isCurrent = currentPlayingId == song.id
-
-                    ArtistTopTrackDenseRow(
-                        rank = index + 1,
-                        song = song,
-                        isCurrent = isCurrent,
-                        isPlaying = isPlaying,
-                        isFav = isFav,
-                        onPlayImmediate = { onPlaySong(song, artist.topSongs) },
-                        onToggleFavorite = { onToggleFavorite(song) }
-                    )
-                }
-            }
-        }
-
-        // Discography Link
-        Spacer(modifier = Modifier.height(10.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onArtistClick() }
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = if (remainingSongs.isNotEmpty()) "More by ${artist.name} (${remainingSongs.size} more tracks)" else "View Artist Profile & Discography",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = colorScheme.primary
-            )
-            Text(
-                text = "Discography →",
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colorScheme.primary
-            )
-        }
-    }
-}
-
-/**
- * Small, high-density track row specifically engineered for Artist search result cards.
- * Compact visual footprint with rank badges, album art, title, metadata, Room DB favorite toggle,
- * and immediate playback on direct click.
- */
-@Composable
-fun ArtistTopTrackDenseRow(
-    rank: Int,
+private fun CleanSearchSongRow(
     song: Song,
+    rankIndex: Int,
     isCurrent: Boolean,
     isPlaying: Boolean,
     isFav: Boolean,
-    onPlayImmediate: () -> Unit,
-    onToggleFavorite: () -> Unit,
-    modifier: Modifier = Modifier
+    onPlay: () -> Unit,
+    onOpenDetails: () -> Unit,
+    onToggleFavorite: () -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-
-    val rankBadgeBg = when (rank) {
-        1 -> WhiteSmoke.copy(alpha = 0.22f)
-        2 -> WhiteSmoke.copy(alpha = 0.16f)
-        3 -> WhiteSmoke.copy(alpha = 0.10f)
-        else -> StormBlackElevated
+    val rankBadgeColor = when (rankIndex) {
+        1 -> Color(0xFFFFD700) // Gold #1
+        2 -> Color(0xFFC0C0C0) // Silver #2
+        3 -> Color(0xFFCD7F32) // Bronze #3
+        else -> WhiteSmokeMuted
     }
 
-    val rankBadgeTextColor = when (rank) {
-        1 -> WhiteSmoke
-        2 -> WhiteSmokeSoft
-        3 -> WhiteSmokeMuted
-        else -> colorScheme.onSurfaceVariant
-    }
-
-    Row(
-        modifier = modifier
+    Box(
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                if (isCurrent) SpotifyGreen.copy(alpha = 0.16f)
-                else colorScheme.surfaceVariant.copy(alpha = 0.28f)
-            )
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isCurrent) SpotifyGreen.copy(alpha = 0.12f) else StormBlackElevated.copy(alpha = 0.7f))
             .border(
-                width = if (isCurrent) 1.dp else 0.5.dp,
-                color = if (isCurrent) WhiteSmoke.copy(alpha = 0.6f) else WhiteSmoke.copy(alpha = 0.05f),
-                shape = RoundedCornerShape(10.dp)
+                1.dp,
+                if (isCurrent) SpotifyGreen.copy(alpha = 0.5f) else StormSlateBorder.copy(alpha = 0.5f),
+                RoundedCornerShape(14.dp)
             )
-            .clickable { onPlayImmediate() }
-            .padding(horizontal = 8.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clickable { onOpenDetails() }
+            .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        // Rank pill or animated visualizer
-        Box(
-            modifier = Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(if (isCurrent) SpotifyGreen.copy(alpha = 0.25f) else rankBadgeBg),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isCurrent && isPlaying) {
-                Icon(
-                    imageVector = Icons.Default.GraphicEq,
-                    contentDescription = "Playing",
-                    tint = SpotifyGreen,
-                    modifier = Modifier.size(13.dp)
-                )
-            } else {
-                Text(
-                    text = "#$rank",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isCurrent) SpotifyGreen else rankBadgeTextColor
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        // High-density Mini Artwork Thumbnail
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .border(0.5.dp, WhiteSmoke.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
-        ) {
-            MusicaImage(
-                model = song.artworkUrl,
-                contentDescription = song.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                titlePlaceholder = song.title
-            )
-        }
-
-        Spacer(modifier = Modifier.width(10.dp))
-
-        // Title and High-density subtitle
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isCurrent) SpotifyGreen else colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(1.dp))
-            Text(
-                text = "${song.album.ifBlank { "Popular Track" }} • 30s preview",
-                fontSize = 10.5.sp,
-                color = colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // Room DB Favorite Heart Button
-        IconButton(
-            onClick = onToggleFavorite,
-            modifier = Modifier.size(28.dp)
-        ) {
-            Icon(
-                imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = "Favorite",
-                tint = if (isFav) WhiteSmoke else colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.size(16.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.width(2.dp))
-
-        // Immediate Play Button
-        IconButton(
-            onClick = onPlayImmediate,
-            modifier = Modifier.size(28.dp)
-        ) {
-            Icon(
-                imageVector = if (isCurrent && isPlaying) Icons.Default.GraphicEq else Icons.Default.PlayArrow,
-                contentDescription = "Play Track Immediately",
-                tint = SpotifyGreen,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-    }
-}
-
-/**
- * Enhanced Album Display Card for Search Results.
- * Highlights the album cover art (vinyl & sleeve aesthetic, atmospheric backdrop, verified artist metadata)
- * and interactive tracklist (Top 3 featured tracks with animated equalizer and expandable full tracklist),
- * ensuring visual consistency with the artist profile layout.
- */
-@Composable
-fun AlbumDisplayCard(
-    album: Album,
-    currentPlayingId: Long?,
-    isPlaying: Boolean,
-    favoriteSongs: List<Song>,
-    onPlaySong: (Song, List<Song>) -> Unit,
-    onOpenSongDetails: (Song) -> Unit,
-    onToggleFavorite: (Song) -> Unit,
-    onArtistClick: ((String) -> Unit)? = null,
-    modifier: Modifier = Modifier
-) {
-    val colorScheme = MaterialTheme.colorScheme
-    val context = LocalContext.current
-    var isTracklistExpanded by remember { mutableStateOf(false) }
-
-    val topThreeTracks = album.topFeaturedSongs.ifEmpty { album.tracks.take(3) }
-    val remainingTracks = album.tracks.drop(3)
-    val isAlbumActive = currentPlayingId != null && album.tracks.any { it.id == currentPlayingId }
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .liquidGlassEffect(
-                shape = RoundedCornerShape(22.dp),
-                elevation = if (isAlbumActive) 8.dp else 4.dp
-            )
-            .border(
-                width = 1.dp,
-                color = if (isAlbumActive) WhiteSmoke.copy(alpha = 0.5f) else WhiteSmoke.copy(alpha = 0.08f),
-                shape = RoundedCornerShape(22.dp)
-            )
-            .padding(16.dp)
-    ) {
-        // 1. Cover Art & Album Details Hero Section (Consistent with Artist Profile Aesthetic)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // High-Resolution Cover Art with Vinyl Sleeve Accent & Glowing Border
+            // Rank Number
+            Box(
+                modifier = Modifier.width(28.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = "#$rankIndex",
+                    fontSize = 13.sp,
+                    fontWeight = if (rankIndex <= 3) FontWeight.ExtraBold else FontWeight.SemiBold,
+                    color = rankBadgeColor
+                )
+            }
+
+            // Song Artwork
             Box(
                 modifier = Modifier
-                    .size(96.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .border(2.dp, WhiteSmoke.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
-                    .clickable {
-                        album.tracks.firstOrNull()?.let { onPlaySong(it, album.tracks) }
-                    },
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .border(1.dp, StormSlateBorder, RoundedCornerShape(10.dp))
+                    .clickable { onPlay() },
                 contentAlignment = Alignment.Center
             ) {
                 MusicaImage(
-                    model = album.artworkUrl,
-                    contentDescription = album.title,
-                    contentScale = ContentScale.Crop,
+                    model = song.artworkUrl,
+                    contentDescription = song.title,
                     modifier = Modifier.fillMaxSize(),
-                    titlePlaceholder = album.title
+                    titlePlaceholder = song.title
                 )
 
-                // Atmospheric dark gradient overlay
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    StormBlackBg.copy(alpha = 0.45f)
-                                )
-                            )
-                        )
-                )
-
-                // Mini Vinyl Disc Indicator / Play Overlay
-                if (isAlbumActive && isPlaying) {
+                // Playing overlay
+                if (isCurrent) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(StormBlackBg.copy(alpha = 0.7f)),
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.45f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.GraphicEq,
-                            contentDescription = "Playing Album",
+                            imageVector = if (isPlaying) Icons.Default.Equalizer else Icons.Default.PlayArrow,
+                            contentDescription = null,
                             tint = SpotifyGreen,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Metadata column
-            Column(modifier = Modifier.weight(1f)) {
-                // Header badge
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = "ALBUM",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = SpotifyGreen,
-                        letterSpacing = 1.2.sp
-                    )
-                    Text(
-                        text = "•",
-                        fontSize = 10.sp,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = album.releaseYear,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                // Album Title
+            // Title, Artist, & Spotify Views Badge
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
-                    text = album.title,
-                    fontSize = 18.sp,
+                    text = song.title,
+                    fontSize = 14.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = colorScheme.onSurface,
+                    color = if (isCurrent) SpotifyGreen else WhiteSmoke,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
-                // Clickable Artist Link with Verified checkmark
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable(enabled = onArtistClick != null) {
-                        onArtistClick?.invoke(album.artist)
-                    }
-                ) {
-                    Text(
-                        text = album.artist,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.Default.Verified,
-                        contentDescription = "Verified Artist",
-                        tint = colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
+                Text(
+                    text = "${song.artist} • ${song.album}",
+                    fontSize = 12.sp,
+                    color = WhiteSmokeMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Genre & Track count pill badges
+                // Prominent Spotify Views Badge (sorted descending)
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = album.genre,
-                            fontSize = 10.sp,
-                            color = colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "${album.trackCount.coerceAtLeast(album.tracks.size)} tracks",
-                            fontSize = 10.sp,
-                            color = colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-
-            // Quick Play Album Circular Button (Visual consistency with Artist screen play FAB)
-            if (album.tracks.isNotEmpty()) {
-                Box(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(if (isAlbumActive) SpotifyGreen else WhiteSmoke)
-                        .clickable {
-                            val target = album.tracks.firstOrNull()
-                            if (target != null) {
-                                onPlaySong(target, album.tracks)
-                            }
-                        },
-                    contentAlignment = Alignment.Center
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(SpotifyGreen.copy(alpha = 0.16f))
+                        .border(0.8.dp, SpotifyGreen.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Icon(
-                        imageVector = if (isAlbumActive && isPlaying) Icons.Default.GraphicEq else Icons.Default.PlayArrow,
-                        contentDescription = "Play Album",
-                        tint = StormBlackBg,
-                        modifier = Modifier.size(26.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Action Buttons Row: Shuffle + Streaming Hubs deep links
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Shuffle Button
-            Button(
-                onClick = {
-                    if (album.tracks.isNotEmpty()) {
-                        val shuffled = album.tracks.shuffled()
-                        onPlaySong(shuffled.first(), shuffled)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                    contentColor = colorScheme.onSurface
-                ),
-                shape = RoundedCornerShape(16.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Shuffle,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = colorScheme.onSurface
+                        imageVector = Icons.Default.Equalizer,
+                        contentDescription = "Streams",
+                        tint = SpotifyGreen,
+                        modifier = Modifier.size(11.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "Shuffle",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
+                        text = "${song.formattedSpotifyStreams} Spotify views",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SpotifyGreen
                     )
                 }
             }
 
-            // Spotify Deep Link Chip
-            val sampleSong = album.tracks.firstOrNull()
-            if (sampleSong != null) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                        .clickable {
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(sampleSong.spotifyUrl))
-                                context.startActivity(intent)
-                            } catch (e: Exception) {}
-                        }
-                        .padding(horizontal = 10.dp, vertical = 7.dp)
+            // Action Buttons: Favorite + Play
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Heart Favorite Button
+                IconButton(
+                    onClick = onToggleFavorite,
+                    modifier = Modifier.size(34.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Spotify",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = SpotifyGreen
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.OpenInNew,
-                            contentDescription = "Open Spotify",
-                            tint = SpotifyGreen,
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        contentDescription = "Favorite",
+                        tint = if (isFav) Color(0xFFF472B6) else WhiteSmokeMuted,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
 
-                // Apple Music Deep Link Chip
+                // Play / Pause Circle Button
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                        .clickable {
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(sampleSong.appleMusicUrl))
-                                context.startActivity(intent)
-                            } catch (e: Exception) {}
-                        }
-                        .padding(horizontal = 10.dp, vertical = 7.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(if (isCurrent && isPlaying) SpotifyGreen else StormBlackCard)
+                        .border(1.dp, SpotifyGreen.copy(alpha = 0.6f), CircleShape)
+                        .clickable { onPlay() },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Apple Music",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.OpenInNew,
-                            contentDescription = "Open Apple Music",
-                            tint = colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = if (isCurrent && isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Play/Pause",
+                        tint = if (isCurrent && isPlaying) Color.Black else SpotifyGreen,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(14.dp))
+/**
+ * Showcase card for an album matching search query.
+ * Displays:
+ * - Album artwork, title, artist, year, track count badge
+ * - Header click or button to open full album bottom sheet (displaying all songs)
+ * - Top 5 songs in the album with rank badges, Spotify stream counts, and play/pause controls
+ * - "View All X Songs" interactive footer button
+ */
+@Composable
+fun SearchAlbumShowcaseCard(
+    album: Album,
+    currentPlayingId: Long?,
+    isPlaying: Boolean,
+    onPlaySong: (Song, List<Song>) -> Unit,
+    onOpenAlbum: (Album) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val view = LocalView.current
+    val top5Songs = remember(album) {
+        album.topFeaturedSongs.take(5).ifEmpty { album.tracks.take(5) }
+    }
+    val effectiveTrackCount = remember(album) {
+        album.trackCount.coerceAtLeast(album.tracks.size).coerceAtLeast(top5Songs.size)
+    }
 
-        // 2. Top 3 Featured Tracks Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Equalizer,
-                    contentDescription = null,
-                    tint = SpotifyGreen,
-                    modifier = Modifier.size(15.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Featured Album Tracks",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.onSurface
-                )
-            }
-            Text(
-                text = "${album.tracks.size} tracks total",
-                fontSize = 11.sp,
-                color = colorScheme.onSurfaceVariant
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Top 3 Tracklist items with Rank Badges
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            topThreeTracks.forEachIndexed { index, song ->
-                val isFav = favoriteSongs.any { it.id == song.id }
-                val isCurrent = currentPlayingId == song.id
-
-                TopTrackItem(
-                    rank = index + 1,
-                    song = song,
-                    isCurrent = isCurrent,
-                    isFav = isFav,
-                    onPlay = { onPlaySong(song, album.tracks) },
-                    onOpenDetails = { onOpenSongDetails(song) },
-                    onToggleFavorite = { onToggleFavorite(song) }
-                )
-            }
-        }
-
-        // 3. Complete Tracklist Toggle (Expandable for remaining tracks)
-        if (remainingTracks.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Expand / Collapse Header
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .liquidGlassEffect(shape = RoundedCornerShape(20.dp), elevation = 4.dp)
+            .border(1.dp, StormSlateBorder, RoundedCornerShape(20.dp))
+            .padding(14.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Album Hero Header: Cover + Info + Open Album Icon
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(colorScheme.surfaceVariant.copy(alpha = 0.25f))
-                    .clickable { isTracklistExpanded = !isTracklistExpanded }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .clickable {
+                        VibesHaptics.strongClick(context, view)
+                        onOpenAlbum(album)
+                    }
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Album Cover
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, StormSlateBorder, RoundedCornerShape(12.dp))
+                ) {
+                    MusicaImage(
+                        model = album.artworkUrl,
+                        contentDescription = album.title,
+                        titlePlaceholder = album.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Title, Artist, & Meta Badges
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF8B5CF6).copy(alpha = 0.25f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "ALBUM",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFFC084FC)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "${album.releaseYear} • $effectiveTrackCount TRACKS",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = WhiteSmokeMuted
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Text(
+                        text = album.title,
+                        fontSize = 15.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = WhiteSmoke,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Text(
+                        text = album.artist,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = SpotifyGreen,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Quick Play/Open Pill
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF8B5CF6).copy(alpha = 0.2f))
+                        .border(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.5f), CircleShape)
+                        .clickable {
+                            VibesHaptics.strongClick(context, view)
+                            onOpenAlbum(album)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Album,
+                        contentDescription = "Open Album",
+                        tint = Color(0xFFC084FC),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Subheader: Top 5 Songs
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (isTracklistExpanded) "Hide full tracklist" else "View complete tracklist (${remainingTracks.size} more)",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = SpotifyGreen
+                    text = "Top 5 Songs",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = WhiteSmokeSoft
                 )
-                Icon(
-                    imageVector = if (isTracklistExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isTracklistExpanded) "Collapse" else "Expand",
-                    tint = SpotifyGreen,
-                    modifier = Modifier.size(18.dp)
+                Text(
+                    text = "Spotify Popularity",
+                    fontSize = 10.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = WhiteSmokeMuted
                 )
             }
 
-            AnimatedVisibility(
-                visible = isTracklistExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier.padding(top = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    remainingTracks.forEachIndexed { index, song ->
-                        val isFav = favoriteSongs.any { it.id == song.id }
-                        val isCurrent = currentPlayingId == song.id
+            Spacer(modifier = Modifier.height(6.dp))
 
-                        TopTrackItem(
-                            rank = index + 4,
-                            song = song,
-                            isCurrent = isCurrent,
-                            isFav = isFav,
-                            onPlay = { onPlaySong(song, album.tracks) },
-                            onOpenDetails = { onOpenSongDetails(song) },
-                            onToggleFavorite = { onToggleFavorite(song) }
-                        )
+            // Top 5 Songs List
+            if (top5Songs.isNotEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    top5Songs.forEachIndexed { index, song ->
+                        val isCurrent = currentPlayingId == song.id
+                        val rank = index + 1
+                        val rankColor = when (rank) {
+                            1 -> Color(0xFFFFD700)
+                            2 -> Color(0xFFC0C0C0)
+                            3 -> Color(0xFFCD7F32)
+                            else -> WhiteSmokeMuted
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isCurrent) SpotifyGreen.copy(alpha = 0.12f) else StormBlackCard.copy(alpha = 0.6f))
+                                .border(
+                                    0.8.dp,
+                                    if (isCurrent) SpotifyGreen.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.04f),
+                                    RoundedCornerShape(10.dp)
+                                )
+                                .clickable {
+                                    VibesHaptics.mediumClick(context, view)
+                                    val playlist = album.tracks.ifEmpty { top5Songs }
+                                    onPlaySong(song, playlist)
+                                }
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Rank Number
+                            Text(
+                                text = "#$rank",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = rankColor,
+                                modifier = Modifier.width(24.dp)
+                            )
+
+                            // Title & Spotify Stream Count
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = song.title,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.SemiBold,
+                                    color = if (isCurrent) SpotifyGreen else WhiteSmoke,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Equalizer,
+                                        contentDescription = null,
+                                        tint = SpotifyGreen,
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "${song.formattedSpotifyStreams} views",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SpotifyGreen
+                                    )
+                                }
+                            }
+
+                            // Play / Pause Icon
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isCurrent && isPlaying) SpotifyGreen else Color.White.copy(alpha = 0.08f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isCurrent && isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = "Play Track",
+                                    tint = if (isCurrent && isPlaying) Color.Black else SpotifyGreen,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
                     }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Tap below to view full tracklist",
+                        fontSize = 12.sp,
+                        color = WhiteSmokeMuted
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Footer Button: View All Songs in Album
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF8B5CF6).copy(alpha = 0.18f))
+                    .border(1.dp, Color(0xFF8B5CF6).copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                    .clickable {
+                        VibesHaptics.strongClick(context, view)
+                        onOpenAlbum(album)
+                    }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Album,
+                        contentDescription = null,
+                        tint = Color(0xFFC084FC),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Text(
+                        text = "View All $effectiveTrackCount Songs in Album",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE9D5FF)
+                    )
                 }
             }
         }
@@ -1399,194 +1222,69 @@ fun AlbumDisplayCard(
 }
 
 /**
- * Top Track row within Artist or Album rich cards.
+ * Compact card for secondary albums matching search.
  */
 @Composable
-private fun TopTrackItem(
-    rank: Int,
-    song: Song,
-    isCurrent: Boolean,
-    isFav: Boolean,
-    onPlay: () -> Unit,
-    onOpenDetails: () -> Unit,
-    onToggleFavorite: () -> Unit
+fun CompactAlbumSearchCard(
+    album: Album,
+    onOpenAlbum: (Album) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val colorScheme = MaterialTheme.colorScheme
+    val trackCount = album.trackCount.coerceAtLeast(album.tracks.size).coerceAtLeast(album.topFeaturedSongs.size)
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (isCurrent) SpotifyGreen.copy(alpha = 0.14f)
-                else colorScheme.surfaceVariant.copy(alpha = 0.35f)
-            )
-            .clickable {
-                onPlay()
-            }
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = modifier
+            .width(120.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(StormBlackElevated)
+            .border(1.dp, StormSlateBorder, RoundedCornerShape(14.dp))
+            .clickable { onOpenAlbum(album) }
+            .padding(8.dp)
     ) {
-        // Rank number
+        Box(
+            modifier = Modifier
+                .size(104.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .border(1.dp, StormSlateBorder, RoundedCornerShape(10.dp))
+        ) {
+            MusicaImage(
+                model = album.artworkUrl,
+                contentDescription = album.title,
+                titlePlaceholder = album.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
         Text(
-            text = "#$rank",
+            text = album.title,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
-            color = if (isCurrent) SpotifyGreen else colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(26.dp)
+            color = WhiteSmoke,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
 
-        // Thumbnail
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(8.dp))
-        ) {
-            MusicaImage(
-                model = song.artworkUrl,
-                contentDescription = song.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                titlePlaceholder = song.title
-            )
-        }
+        Spacer(modifier = Modifier.height(2.dp))
 
-        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = album.artist,
+            fontSize = 11.sp,
+            color = WhiteSmokeMuted,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
 
-        // Title and stats
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isCurrent) SpotifyGreen else colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "${song.artist} • 30s preview",
-                fontSize = 11.sp,
-                color = colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        Spacer(modifier = Modifier.height(2.dp))
 
-        // Heart favorite toggle (Room DB)
-        IconButton(
-            onClick = onToggleFavorite,
-            modifier = Modifier.size(30.dp)
-        ) {
-            Icon(
-                imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = "Favorite",
-                tint = if (isFav) WhiteSmoke else colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(17.dp)
-            )
-        }
-
-        // Play Button
-        IconButton(
-            onClick = onPlay,
-            modifier = Modifier.size(30.dp)
-        ) {
-            Icon(
-                imageVector = if (isCurrent) Icons.Default.GraphicEq else Icons.Default.PlayArrow,
-                contentDescription = "Play",
-                tint = SpotifyGreen,
-                modifier = Modifier.size(19.dp)
-            )
-        }
+        Text(
+            text = "$trackCount Tracks",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color(0xFFC084FC)
+        )
     }
 }
 
-/**
- * Standard Song search result row with liquid glass effect and Room DB heart toggle.
- */
-@Composable
-private fun SearchSongRow(
-    song: Song,
-    index: Int,
-    isCurrent: Boolean,
-    isFav: Boolean,
-    onPlay: () -> Unit,
-    onOpenDetails: () -> Unit,
-    onToggleFavorite: () -> Unit
-) {
-    val colorScheme = MaterialTheme.colorScheme
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .liquidGlassEffect(shape = RoundedCornerShape(14.dp), elevation = 2.dp)
-            .clickable {
-                onPlay()
-            }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Thumbnail
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(10.dp))
-        ) {
-            MusicaImage(
-                model = song.artworkUrl,
-                contentDescription = song.title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                titlePlaceholder = song.title
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // Title and Artist
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isCurrent) SpotifyGreen else colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "${song.artist} • ${song.album}",
-                fontSize = 11.sp,
-                color = colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // Heart favorite toggle button (Room DB)
-        IconButton(
-            onClick = onToggleFavorite,
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(
-                imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = "Favorite",
-                tint = if (isFav) WhiteSmoke else colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-
-        // Play button
-        IconButton(
-            onClick = onPlay,
-            modifier = Modifier.size(32.dp)
-        ) {
-            Icon(
-                imageVector = if (isCurrent) Icons.Default.GraphicEq else Icons.Default.PlayArrow,
-                contentDescription = "Play",
-                tint = SpotifyGreen,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}

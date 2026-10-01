@@ -79,6 +79,8 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.LyricsScreen
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import com.example.util.VibesHaptics
 import com.example.ui.screens.NowPlayingScreen
 import com.example.ui.screens.SearchScreen
 import com.example.ui.screens.SplashScreen
@@ -93,6 +95,9 @@ fun MusicaApp(
     viewModel: MainViewModel,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val view = LocalView.current
+
     var showSplash by remember { mutableStateOf(true) }
     var selectedTab by remember { mutableIntStateOf(0) }
     var viewingArtistName by remember { mutableStateOf<String?>(null) }
@@ -168,11 +173,18 @@ fun MusicaApp(
     val lastSyncTime by viewModel.lastSyncTime.collectAsStateWithLifecycle()
     val isAuthLoading by viewModel.isAuthLoading.collectAsStateWithLifecycle()
     val authErrorMessage by viewModel.authErrorMessage.collectAsStateWithLifecycle()
+    val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
 
     var showAuthSheet by remember { mutableStateOf(false) }
     var showEqualizerSheet by remember { mutableStateOf(false) }
     var showMoodPlaylistSheet by remember { mutableStateOf(false) }
     var selectedAlbumForSheet by remember { mutableStateOf<Album?>(null) }
+    val viewModelSelectedAlbum by viewModel.selectedAlbum.collectAsStateWithLifecycle()
+    LaunchedEffect(viewModelSelectedAlbum) {
+        if (viewModelSelectedAlbum != null) {
+            selectedAlbumForSheet = viewModelSelectedAlbum
+        }
+    }
     val authSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val spotifySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -262,15 +274,28 @@ fun MusicaApp(
                                 isBuffering = isBuffering,
                                 currentPositionMs = currentPositionMs,
                                 durationMs = durationMs,
-                                onTogglePlayPause = { viewModel.togglePlayPause() },
-                                onNext = { viewModel.playNext() },
-                                onPrevious = { viewModel.playPrevious() },
+                                onTogglePlayPause = {
+                                    VibesHaptics.playPause(context, view)
+                                    viewModel.togglePlayPause()
+                                },
+                                onNext = {
+                                    VibesHaptics.strongClick(context, view)
+                                    viewModel.playNext()
+                                },
+                                onPrevious = {
+                                    VibesHaptics.strongClick(context, view)
+                                    viewModel.playPrevious()
+                                },
                                 onSeek = { viewModel.seekTo(it) },
                                 onExpand = { 
+                                    VibesHaptics.strongClick(context, view)
                                     playerTab = PlayerTab.NOW_PLAYING
                                     viewModel.openNowPlaying() 
                                 },
-                                onOpenQueue = { viewModel.openQueueDrawer() },
+                                onOpenQueue = {
+                                    VibesHaptics.mediumClick(context, view)
+                                    viewModel.openQueueDrawer()
+                                },
                                 upcomingCount = upcomingCount,
                                 activeLyricGlimpse = activeLyricGlimpse
                             )
@@ -304,6 +329,7 @@ fun MusicaApp(
                                 val isNexusSelected = selectedTab == 0 && viewingArtistName == null && viewingGenre == null
                                 IconButton(
                                     onClick = {
+                                        VibesHaptics.strongClick(context, view)
                                         selectedTab = 0
                                         viewingArtistName = null
                                         viewingGenre = null
@@ -322,6 +348,7 @@ fun MusicaApp(
                                 val isRadarSelected = selectedTab == 1 && viewingArtistName == null && viewingGenre == null
                                 IconButton(
                                     onClick = {
+                                        VibesHaptics.strongClick(context, view)
                                         selectedTab = 1
                                         viewingArtistName = null
                                         viewingGenre = null
@@ -340,6 +367,7 @@ fun MusicaApp(
                                 val isVaultSelected = selectedTab == 2 && viewingArtistName == null && viewingGenre == null
                                 IconButton(
                                     onClick = {
+                                        VibesHaptics.strongClick(context, view)
                                         selectedTab = 2
                                         viewingArtistName = null
                                         viewingGenre = null
@@ -456,16 +484,18 @@ fun MusicaApp(
                             onToggleOfflineMode = { viewModel.toggleOfflineMode() },
                             onOpenMoodPlaylistGenerator = { showMoodPlaylistSheet = true },
                             featuredAlbums = featuredAlbums,
-                            onOpenAlbum = { album -> selectedAlbumForSheet = album },
-                            searchQuery = searchQuery,
-                            onSearchQueryChange = { viewModel.onSearchQueryChanged(it) },
-                            searchResults = searchResults,
-                            isSearching = isSearching
+                            onOpenAlbum = { album ->
+                                viewModel.selectAlbum(album)
+                                selectedAlbumForSheet = album
+                            }
                         )
 
                         1 -> SearchScreen(
                             query = searchQuery,
                             searchResults = searchResults,
+                            searchHistory = searchHistory,
+                            onRemoveSearchHistoryItem = { viewModel.removeSearchHistoryItem(it) },
+                            onClearSearchHistory = { viewModel.clearSearchHistory() },
                             catalogSongs = trendingSongs + recommendedSongs,
                             matchedArtist = matchedArtist,
                             matchedArtists = matchedArtists,
@@ -484,6 +514,10 @@ fun MusicaApp(
                             onArtistClick = { artistName ->
                                 viewingArtistName = artistName
                                 viewModel.loadArtistSongs(artistName)
+                            },
+                            onOpenAlbum = { album ->
+                                viewModel.selectAlbum(album)
+                                selectedAlbumForSheet = album
                             }
                         )
 
@@ -615,7 +649,10 @@ fun MusicaApp(
                 onToggleFavorite = { song ->
                     viewModel.toggleFavorite(song)
                 },
-                onDismiss = { selectedAlbumForSheet = null },
+                onDismiss = {
+                    selectedAlbumForSheet = null
+                    viewModel.clearSelectedAlbum()
+                },
                 sheetState = albumSheetState
             )
         }

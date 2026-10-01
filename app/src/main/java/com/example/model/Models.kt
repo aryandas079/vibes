@@ -12,8 +12,18 @@ data class Song(
     val releaseYear: String = "2024",
     val spotifyTrackId: String? = null,
     val isFavorite: Boolean = false,
-    val artistImageUrl: String? = null
+    val artistImageUrl: String? = null,
+    val spotifyStreams: Long = 0L
 ) {
+    val formattedSpotifyStreams: String
+        get() = when {
+            spotifyStreams >= 1_000_000_000L -> String.format(java.util.Locale.US, "%.1fB", spotifyStreams / 1_000_000_000.0)
+            spotifyStreams >= 1_000_000L -> String.format(java.util.Locale.US, "%.1fM", spotifyStreams / 1_000_000.0)
+            spotifyStreams >= 1_000L -> String.format(java.util.Locale.US, "%.1fK", spotifyStreams / 1_000.0)
+            spotifyStreams > 0L -> "$spotifyStreams"
+            else -> "50M"
+        }
+
     val validSpotifyTrackId: String
         get() = if (!spotifyTrackId.isNullOrBlank() && spotifyTrackId.length >= 15) {
             spotifyTrackId

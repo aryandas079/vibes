@@ -92,17 +92,21 @@ fun ArtistScreen(
             found
         } else {
             when {
-                artistName.contains("taylor", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/e1ab8d94097640e46973cdc0cffcdaee/500x500-000000-80-0-0.jpg"
+                artistName.contains("taylor", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/cc2495870fe1a792ad0cdb05501ad5ec/500x500-000000-80-0-0.jpg"
+                artistName.contains("rosé", ignoreCase = true) || artistName.contains("rose", ignoreCase = true) -> "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/c2/a9/23/c2a923ac-b382-e73b-91f4-013a8d5a0600/21UMGIM18155.rgb.jpg/600x600bb.jpg"
                 artistName.contains("drake", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/1051e7fd110f9d3e5e88cdc69c5f227b/500x500-000000-80-0-0.jpg"
                 artistName.contains("weeknd", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/581693b4724a7fcfa754455101e13a44/500x500-000000-80-0-0.jpg"
                 artistName.contains("billie", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/8eab1a9a644889aabaca1e193e05f984/500x500-000000-80-0-0.jpg"
                 artistName.contains("ed sheeran", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/d6bb84390641d8ae9118228d9544e53d/500x500-000000-80-0-0.jpg"
                 artistName.contains("sabrina", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/4a9cdc7737e2a0e59b4917b47884b859/500x500-000000-80-0-0.jpg"
                 artistName.contains("bad bunny", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/044a3f315b041864887a8dd8709e6926/500x500-000000-80-0-0.jpg"
-                artistName.contains("bruno", ignoreCase = true) || artistName.contains("gaga", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/90f0b5b11df4f87ee878f38569b5995b/500x500-000000-80-0-0.jpg"
+                artistName.contains("bruno", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/90f0b5b11df4f87ee878f38569b5995b/500x500-000000-80-0-0.jpg"
+                artistName.contains("gaga", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/7565262f7661b0d762621a8d69ba6f49/500x500-000000-80-0-0.jpg"
                 artistName.contains("harry", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/1151dba9b3edc0633adf35b64c21713f/500x500-000000-80-0-0.jpg"
-                artistName.contains("ariana", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/77db55d14dfa66699ec16f2c73d9e487/500x500-000000-80-0-0.jpg"
-                else -> artistSongs.firstOrNull()?.artworkUrl ?: "https://cdn-images.dzcdn.net/images/artist/e1ab8d94097640e46973cdc0cffcdaee/500x500-000000-80-0-0.jpg"
+                artistName.contains("ariana", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/721d8fab84b315502de422b8d0901509/500x500-000000-80-0-0.jpg"
+                artistName.contains("marshmello", ignoreCase = true) || artistName.contains("marshmallow", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/7990773a89df9f06fc2b871ad1de00bf/500x500-000000-80-0-0.jpg"
+                artistName.contains("bastille", ignoreCase = true) || artistName.contains("bastile", ignoreCase = true) -> "https://cdn-images.dzcdn.net/images/artist/6b76e1f7a7bda7e7e41950d12c77702f/500x500-000000-80-0-0.jpg"
+                else -> artistSongs.firstOrNull()?.artworkUrl ?: "https://cdn-images.dzcdn.net/images/artist/cc2495870fe1a792ad0cdb05501ad5ec/500x500-000000-80-0-0.jpg"
             }
         }
     }

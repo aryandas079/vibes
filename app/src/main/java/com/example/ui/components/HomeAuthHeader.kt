@@ -58,6 +58,9 @@ import com.example.model.SyncStatus
 import com.example.model.UserSession
 import com.example.model.Song
 import com.example.ui.components.MusicaImage
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import com.example.util.VibesHaptics
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.testTag
@@ -75,17 +78,13 @@ fun HomeAuthHeader(
     userSession: UserSession?,
     syncStatus: SyncStatus,
     onOpenAuth: () -> Unit,
-    onNavigateToSearch: () -> Unit,
+    onNavigateToSearch: () -> Unit = {},
     modifier: Modifier = Modifier,
     isOfflineMode: Boolean = false,
-    onToggleOfflineMode: () -> Unit = {},
-    searchQuery: String = "",
-    onSearchQueryChange: (String) -> Unit = {},
-    searchResults: List<Song> = emptyList(),
-    isSearching: Boolean = false,
-    onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
-    onOpenSongDetails: (Song) -> Unit = {}
+    onToggleOfflineMode: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val view = LocalView.current
     val haptic = LocalHapticFeedback.current
     val colorScheme = MaterialTheme.colorScheme
     var showDevInfoDialog by remember { mutableStateOf(false) }
@@ -99,10 +98,10 @@ fun HomeAuthHeader(
         else -> "Good night"
     }
 
-    val greetingTarget = if (userSession != null) {
-        userSession.greetingName
+    val greetingText = if (userSession != null && !userSession.greetingName.isNullOrBlank() && userSession.greetingName != "Music Lover") {
+        "$greetingTime, ${userSession.greetingName}"
     } else {
-        "Music Lover"
+        greetingTime
     }
 
     Column(
@@ -115,10 +114,11 @@ fun HomeAuthHeader(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: Greeting & App Title
+            // Left: Vibes Logo & Greeting below it
             Column(
                 modifier = Modifier.weight(1f)
             ) {
+                // Vibes Logo
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Image(
                         painter = painterResource(id = R.drawable.ic_vibes_logo),
@@ -133,27 +133,20 @@ fun HomeAuthHeader(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "•  $greetingTime,",
-                        fontSize = 13.sp,
-                        color = WhiteSmokeMuted,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Greeting placed below Vibes logo (e.g. Good morning, Good afternoon, Good night)
                 Text(
-                    text = greetingTarget,
-                    fontSize = 26.sp,
+                    text = greetingText,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = colorScheme.onBackground,
                     letterSpacing = (-0.5).sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
 
                 // Cloud Sync / Status Pill
                 Row(
@@ -209,7 +202,7 @@ fun HomeAuthHeader(
                         .border(1.2.dp, StormSlateBorder, CircleShape)
                         .liquidGlassEffect(shape = CircleShape, elevation = 4.dp)
                         .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            VibesHaptics.strongClick(context, view)
                             showDevInfoDialog = true
                         },
                     contentAlignment = Alignment.Center
@@ -231,7 +224,7 @@ fun HomeAuthHeader(
                             .border(1.5.dp, WhiteSmokeSoft, CircleShape)
                             .liquidGlassEffect(shape = CircleShape, elevation = 4.dp)
                             .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                VibesHaptics.strongClick(context, view)
                                 onOpenAuth()
                             },
                         contentAlignment = Alignment.Center
@@ -273,7 +266,7 @@ fun HomeAuthHeader(
                             .background(StormBlackElevated)
                             .border(1.dp, StormSlateBorder, RoundedCornerShape(19.dp))
                             .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                VibesHaptics.strongClick(context, view)
                                 onOpenAuth()
                             }
                             .padding(horizontal = 12.dp),
@@ -301,171 +294,6 @@ fun HomeAuthHeader(
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Real-time Search Bar inside Top Navigation area
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(StormBlackElevated)
-                .border(1.dp, StormSlateBorder, RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = WhiteSmokeMuted,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    textStyle = TextStyle(
-                        color = WhiteSmoke,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    ),
-                    cursorBrush = SolidColor(Color(0xFF1DB954)),
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    decorationBox = { innerTextField ->
-                        if (searchQuery.isEmpty()) {
-                            Text(
-                                text = "Search songs by title or artist...",
-                                color = WhiteSmokeMuted,
-                                fontSize = 14.sp
-                            )
-                        }
-                        innerTextField()
-                    }
-                )
-
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(
-                        onClick = { onSearchQueryChange("") },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Clear Search",
-                            tint = WhiteSmokeMuted,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-        }
-
-        // Real-time Search Results Dropdown Overlay
-        AnimatedVisibility(
-            visible = searchQuery.isNotEmpty(),
-            enter = expandVertically(),
-            exit = shrinkVertically()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .liquidGlassEffect(shape = RoundedCornerShape(16.dp), elevation = 6.dp)
-                    .border(1.dp, StormSlateBorder, RoundedCornerShape(16.dp))
-                    .padding(8.dp)
-            ) {
-                if (isSearching) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(100.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = Color(0xFF1DB954),
-                            strokeWidth = 2.dp
-                        )
-                    }
-                } else if (searchResults.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(80.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No songs found for \"$searchQuery\"",
-                            color = WhiteSmokeMuted,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "Real-time Search Results",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF1DB954),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                    
-                    searchResults.take(5).forEach { song ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    onPlaySong(song, searchResults)
-                                    onOpenSongDetails(song)
-                                }
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            MusicaImage(
-                                model = song.artworkUrl,
-                                contentDescription = song.title,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(RoundedCornerShape(6.dp)),
-                                titlePlaceholder = song.title
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = song.title,
-                                    color = WhiteSmoke,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = song.artist,
-                                    color = WhiteSmokeMuted,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "Play",
-                                tint = Color(0xFF1DB954),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 
     if (showDevInfoDialog) {

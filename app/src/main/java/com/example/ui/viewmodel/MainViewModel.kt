@@ -212,9 +212,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _searchHistory = MutableStateFlow<List<String>>(
-        listOf("The Weeknd", "Taylor Swift", "Sabrina Carpenter", "Billie Eilish")
-    )
+    private fun loadSearchHistory(): List<String> {
+        val prefs = getApplication<Application>().getSharedPreferences("vibes_search_prefs", android.content.Context.MODE_PRIVATE)
+        val raw = prefs.getString("previous_searches", null)
+        if (raw.isNullOrBlank()) {
+            return listOf("Taylor Swift", "The Weeknd", "Billie Eilish", "Coldplay", "Bruno Mars")
+        }
+        return raw.split("|||").filter { it.isNotBlank() }.take(5)
+    }
+
+    private fun persistSearchHistory(list: List<String>) {
+        val prefs = getApplication<Application>().getSharedPreferences("vibes_search_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString("previous_searches", list.take(5).joinToString("|||")).apply()
+    }
+
+    private val _searchHistory = MutableStateFlow<List<String>>(loadSearchHistory())
     val searchHistory: StateFlow<List<String>> = _searchHistory.asStateFlow()
 
     fun recordSearchQuery(query: String) {
@@ -223,9 +235,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val current = _searchHistory.value.toMutableList()
             current.removeAll { it.equals(trimmed, ignoreCase = true) }
             current.add(0, trimmed)
-            _searchHistory.value = current.take(12)
+            val updated = current.take(5)
+            _searchHistory.value = updated
+            persistSearchHistory(updated)
             refreshGeminiDiscovery()
         }
+    }
+
+    fun removeSearchHistoryItem(query: String) {
+        val current = _searchHistory.value.toMutableList()
+        current.removeAll { it.equals(query.trim(), ignoreCase = true) }
+        val updated = current.take(5)
+        _searchHistory.value = updated
+        persistSearchHistory(updated)
+    }
+
+    fun clearSearchHistory() {
+        _searchHistory.value = emptyList()
+        persistSearchHistory(emptyList())
     }
 
     private val _searchResults = MutableStateFlow<List<Song>>(emptyList())
@@ -251,6 +278,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectAlbum(album: Album) {
         _selectedAlbum.value = album
+        viewModelScope.launch {
+            if (album.tracks.size < album.trackCount || album.tracks.size < 6) {
+                val fullTracks = repository.getFullAlbumTracks(album)
+                if (fullTracks.isNotEmpty()) {
+                    val top5 = fullTracks.sortedByDescending { it.spotifyStreams }.take(5).ifEmpty { fullTracks.take(5) }
+                    _selectedAlbum.value = album.copy(
+                        tracks = fullTracks,
+                        trackCount = fullTracks.size,
+                        topFeaturedSongs = top5
+                    )
+                }
+            }
+        }
     }
 
     fun clearSelectedAlbum() {
@@ -669,12 +709,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _searchResults.value = results
 
             val trimmed = query.trim()
-            if (trimmed.length >= 3) {
-                val current = _searchHistory.value.toMutableList()
-                current.removeAll { it.equals(trimmed, ignoreCase = true) }
-                current.add(0, trimmed)
-                _searchHistory.value = current.take(12)
-            }
+            recordSearchQuery(query)
             val allTopArtists = repository.getTopArtists()
             val directTopMatches = allTopArtists.filter {
                 it.name.contains(trimmed, ignoreCase = true) || trimmed.contains(it.name, ignoreCase = true)
@@ -702,32 +737,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _matchedArtists.value = richMatchedArtists
             _matchedArtist.value = richMatchedArtists.firstOrNull()
 
-            // 2. Detect and construct Matched Album Cards with Cover Art, Top 3 Featured Songs + Complete Tracklist
-            val extractedAlbums = mutableListOf<Album>()
-            val groupedByAlbum = results.filter { it.album.isNotBlank() }.groupBy { it.album }
-            groupedByAlbum.forEach { (albumName, songs) ->
-                val firstSong = songs.first()
-                val isDirectMatch = albumName.contains(trimmed, ignoreCase = true) || trimmed.contains(albumName, ignoreCase = true)
-                val albumObj = Album(
-                    id = firstSong.id,
-                    title = albumName,
-                    artist = firstSong.artist,
-                    artworkUrl = firstSong.artworkUrl,
-                    releaseYear = firstSong.releaseYear,
-                    genre = firstSong.genre,
-                    trackCount = songs.size,
-                    tracks = songs,
-                    topFeaturedSongs = songs.take(3)
-                )
-                if (isDirectMatch) {
-                    extractedAlbums.add(0, albumObj)
-                } else {
-                    extractedAlbums.add(albumObj)
-                }
-            }
-
-            _matchedAlbums.value = extractedAlbums
-            _matchedAlbum.value = extractedAlbums.firstOrNull()
+            // 2. Discover live albums complete with all tracks and top 5 featured songs
+            val albums = repository.searchAlbums(trimmed, results)
+            _matchedAlbums.value = albums
+            _matchedAlbum.value = albums.firstOrNull()
 
             _isSearching.value = false
         }

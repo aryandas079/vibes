@@ -125,10 +125,6 @@ fun HomeScreen(
     onOpenMoodPlaylistGenerator: () -> Unit = {},
     featuredAlbums: List<Album> = emptyList(),
     onOpenAlbum: (Album) -> Unit = {},
-    searchQuery: String = "",
-    onSearchQueryChange: (String) -> Unit = {},
-    searchResults: List<Song> = emptyList(),
-    isSearching: Boolean = false,
     dailyMixSongs: List<Song> = emptyList(),
     dailyMixLastUpdated: Long = 0L,
     onRefreshDailyMix: () -> Unit = {}
@@ -237,13 +233,7 @@ fun HomeScreen(
                     onOpenAuth = onOpenAuth,
                     onNavigateToSearch = onNavigateToSearch,
                     isOfflineMode = isOfflineMode,
-                    onToggleOfflineMode = onToggleOfflineMode,
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = onSearchQueryChange,
-                    searchResults = searchResults,
-                    isSearching = isSearching,
-                    onPlaySong = onPlaySong,
-                    onOpenSongDetails = onOpenSongDetails
+                    onToggleOfflineMode = onToggleOfflineMode
                 )
             }
 
@@ -1139,11 +1129,14 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
                         items(topArtists) { artist ->
+                            val singleArtistName = remember(artist.name) {
+                                com.example.data.repository.MusicRepository.extractPrimaryArtist(artist.name)
+                            }
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
                                     .width(80.dp)
-                                    .clickable { onArtistClick(artist.name) }
+                                    .clickable { onArtistClick(singleArtistName) }
                             ) {
                                 Box(contentAlignment = Alignment.BottomEnd) {
                                     Box(
@@ -1155,10 +1148,10 @@ fun HomeScreen(
                                     ) {
                                         MusicaImage(
                                             model = artist.imageUrl,
-                                            contentDescription = artist.name,
+                                            contentDescription = singleArtistName,
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier.fillMaxSize(),
-                                            titlePlaceholder = artist.name
+                                            titlePlaceholder = singleArtistName
                                         )
                                     }
 
@@ -1180,7 +1173,7 @@ fun HomeScreen(
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = artist.name,
+                                    text = singleArtistName,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = colorScheme.onSurface,

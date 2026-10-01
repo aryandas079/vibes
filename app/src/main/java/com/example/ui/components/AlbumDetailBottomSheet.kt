@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -120,7 +121,7 @@ fun AlbumDetailBottomSheet(
                     }
 
                     Text(
-                        text = "• ${album.releaseYear} • ${album.tracks.size} TRACKS",
+                        text = "• ${album.releaseYear} • ${album.trackCount.coerceAtLeast(album.tracks.size)} TRACKS",
                         fontSize = 11.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFFA1A1AA)
@@ -146,7 +147,7 @@ fun AlbumDetailBottomSheet(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 620.dp),
+                    .heightIn(max = 680.dp),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -275,6 +276,33 @@ fun AlbumDetailBottomSheet(
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFF5F5F7)
                     )
+                }
+
+                if (album.tracks.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = SpotifyGreen,
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    text = "Loading complete album tracklist...",
+                                    fontSize = 13.sp,
+                                    color = Color(0xFFA1A1AA)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // Track Rows

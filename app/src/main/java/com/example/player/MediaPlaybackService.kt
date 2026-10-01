@@ -1,6 +1,5 @@
 package com.example.player
 
-import android.R
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -19,11 +18,15 @@ import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
+import android.support.v4.media.session.MediaSessionCompat
 import androidx.core.app.NotificationCompat
+import androidx.media.app.NotificationCompat as MediaNotificationCompat
 import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.example.MainActivity
+import com.example.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,12 +38,12 @@ import kotlinx.coroutines.withContext
  * Status Bar Background Media Playback Service.
  * Posts an ongoing MediaStyle notification in the status bar and notification drawer
  * complete with album artwork, title, artist, playback controls (Previous, Play/Pause, Next),
- * and system MediaSession integration for lockscreen and status bar player controls.
+ * WakeLock for uninterrupted background audio, and MediaSession for lockscreen & status bar.
  */
 class MediaPlaybackService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "musica_media_playback_channel"
+        const val CHANNEL_ID = "vibes_media_playback_channel"
         const val NOTIFICATION_ID = 8881
 
         const val ACTION_START = "com.example.ACTION_START"
@@ -57,12 +60,27 @@ class MediaPlaybackService : Service() {
         const val EXTRA_POSITION = "EXTRA_POSITION"
         const val EXTRA_DURATION = "EXTRA_DURATION"
 
+        const val ACTION_APP_FOREGROUND_CHANGED = "com.example.ACTION_APP_FOREGROUND_CHANGED"
+        const val EXTRA_IS_FOREGROUND = "EXTRA_IS_FOREGROUND"
+
         var activePlayerManager: AudioPlayerManager? = null
         var isServiceRunning = false
+
+        @Volatile
+        private var instance: MediaPlaybackService? = null
+        private var _isAppInForeground: Boolean = true
+        val isAppInForeground: Boolean get() = _isAppInForeground
+
+        fun setAppInForeground(isForeground: Boolean) {
+            _isAppInForeground = isForeground
+            instance?.handleAppForegroundChanged(isForeground)
+        }
     }
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var mediaSession: MediaSession? = null
+    private var wakeLock: PowerManager.WakeLock? = null
+    private lateinit var floatingPillManager: FloatingPillManager
 
     private var currentTitle = "Vibes Player"
     private var currentArtist = "Playing Audio"
@@ -74,7 +92,17 @@ class MediaPlaybackService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         isServiceRunning = true
+        floatingPillManager = FloatingPillManager(this)
+
+        try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
+            wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Vibes:PlaybackService")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         createNotificationChannel()
         initMediaSession()
     }
@@ -106,8 +134,30 @@ class MediaPlaybackService : Service() {
         }
     }
 
+    fun handleAppForegroundChanged(isForeground: Boolean) {
+        if (isForeground) {
+            floatingPillManager.hide()
+        } else {
+            val hasSong = activePlayerManager?.currentSong?.value != null || currentTitle != "Vibes Player"
+            if (hasSong && isPlaying) {
+                floatingPillManager.show(
+                    title = currentTitle,
+                    artist = currentArtist,
+                    artworkUrl = currentArtworkUrl,
+                    artworkBitmap = artworkBitmap,
+                    isPlaying = isPlaying
+                )
+            }
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
+            ACTION_APP_FOREGROUND_CHANGED -> {
+                val isForeground = intent.getBooleanExtra(EXTRA_IS_FOREGROUND, true)
+                setAppInForeground(isForeground)
+            }
+
             ACTION_START, ACTION_UPDATE -> {
                 intent.getStringExtra(EXTRA_TITLE)?.let { if (it.isNotBlank()) currentTitle = it }
                 intent.getStringExtra(EXTRA_ARTIST)?.let { if (it.isNotBlank()) currentArtist = it }
@@ -120,8 +170,25 @@ class MediaPlaybackService : Service() {
                 currentPositionMs = intent.getLongExtra(EXTRA_POSITION, currentPositionMs)
                 currentDurationMs = intent.getLongExtra(EXTRA_DURATION, currentDurationMs)
 
+                manageWakeLock(isPlaying)
                 updatePlaybackState()
                 updateNotification()
+
+                // Update floating pill if app is running in background
+                if (!isAppInForeground) {
+                    val hasSong = activePlayerManager?.currentSong?.value != null || currentTitle != "Vibes Player"
+                    if (hasSong && isPlaying) {
+                        floatingPillManager.update(
+                            title = currentTitle,
+                            artist = currentArtist,
+                            artworkUrl = currentArtworkUrl,
+                            artworkBitmap = artworkBitmap,
+                            isPlaying = isPlaying
+                        )
+                    } else if (!hasSong) {
+                        floatingPillManager.hide()
+                    }
+                }
             }
 
             ACTION_TOGGLE_PLAY -> {
@@ -137,11 +204,34 @@ class MediaPlaybackService : Service() {
             }
 
             ACTION_STOP -> {
-                stopForeground(true)
+                floatingPillManager.hide()
+                manageWakeLock(false)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                } else {
+                    @Suppress("DEPRECATION")
+                    stopForeground(true)
+                }
                 stopSelf()
             }
         }
         return START_STICKY
+    }
+
+    private fun manageWakeLock(acquire: Boolean) {
+        try {
+            if (acquire) {
+                if (wakeLock?.isHeld == false) {
+                    wakeLock?.acquire(3 * 60 * 60 * 1000L) // 3 hours max
+                }
+            } else {
+                if (wakeLock?.isHeld == true) {
+                    wakeLock?.release()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun updatePlaybackState() {
@@ -163,6 +253,7 @@ class MediaPlaybackService : Service() {
         val metadataBuilder = MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_TITLE, currentTitle)
             .putString(MediaMetadata.METADATA_KEY_ARTIST, currentArtist)
+            .putString(MediaMetadata.METADATA_KEY_ALBUM, "Vibes Music")
             .putLong(MediaMetadata.METADATA_KEY_DURATION, currentDurationMs)
 
         artworkBitmap?.let {
@@ -194,6 +285,15 @@ class MediaPlaybackService : Service() {
                     withContext(Dispatchers.Main) {
                         updatePlaybackState()
                         updateNotification()
+                        if (!isAppInForeground && isPlaying) {
+                            floatingPillManager.update(
+                                title = currentTitle,
+                                artist = currentArtist,
+                                artworkUrl = currentArtworkUrl,
+                                artworkBitmap = artworkBitmap,
+                                isPlaying = isPlaying
+                            )
+                        }
                     }
                 } else {
                     artworkBitmap = generateDefaultBitmap(currentTitle)
@@ -220,7 +320,7 @@ class MediaPlaybackService : Service() {
             isAntiAlias = true
             textAlign = Paint.Align.CENTER
         }
-        val firstChar = title.trim().firstOrNull()?.uppercase() ?: "M"
+        val firstChar = title.trim().firstOrNull()?.uppercase() ?: "V"
         val y = (canvas.height / 2f) - ((paint.descent() + paint.ascent()) / 2f)
         canvas.drawText(firstChar, canvas.width / 2f, y, paint)
         return bitmap
@@ -263,32 +363,38 @@ class MediaPlaybackService : Service() {
         val nextIntent = Intent(this, MediaPlaybackService::class.java).apply { action = ACTION_NEXT }
         val nextPendingIntent = PendingIntent.getService(this, 3, nextIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-        val playIcon = if (isPlaying) R.drawable.ic_media_pause else R.drawable.ic_media_play
+        val playIcon = if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(currentTitle)
             .setContentText(currentArtist)
             .setSubText("Vibes Hi-Fi")
-            .setSmallIcon(R.drawable.ic_media_play)
+            .setSmallIcon(R.drawable.ic_vibes_logo)
             .setLargeIcon(artworkBitmap)
             .setContentIntent(openAppPendingIntent)
-            .setDeleteIntent(PendingIntent.getService(this, 4, Intent(this, MediaPlaybackService::class.java).apply { action = ACTION_STOP }, PendingIntent.FLAG_IMMUTABLE))
+            .setDeleteIntent(
+                PendingIntent.getService(
+                    this,
+                    4,
+                    Intent(this, MediaPlaybackService::class.java).apply { action = ACTION_STOP },
+                    PendingIntent.FLAG_IMMUTABLE
+                )
+            )
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(isPlaying)
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
-            .addAction(R.drawable.ic_media_previous, "Previous", prevPendingIntent)
+            .addAction(android.R.drawable.ic_media_previous, "Previous", prevPendingIntent)
             .addAction(playIcon, if (isPlaying) "Pause" else "Play", playTogglePendingIntent)
-            .addAction(R.drawable.ic_media_next, "Next", nextPendingIntent)
+            .addAction(android.R.drawable.ic_media_next, "Next", nextPendingIntent)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val sessionToken = mediaSession?.sessionToken
-            val mediaStyle = Notification.MediaStyle()
-                .setShowActionsInCompactView(0, 1, 2)
-            if (sessionToken != null) {
-                mediaStyle.setMediaSession(sessionToken)
-            }
-            builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
+        // Native Android MediaStyle notification (Spotify/Apple Music styled)
+        val mediaStyle = MediaNotificationCompat.MediaStyle()
+            .setShowActionsInCompactView(0, 1, 2)
+
+        mediaSession?.sessionToken?.let { token ->
+            mediaStyle.setMediaSession(MediaSessionCompat.Token.fromToken(token))
         }
+        builder.setStyle(mediaStyle)
 
         return builder.build()
     }
@@ -297,11 +403,12 @@ class MediaPlaybackService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Vibes Media Playback",
+                "Vibes Music Playback",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Background status bar media player notification"
-                setShowBadge(false)
+                description = "Background music player and status bar indicator"
+                setShowBadge(true)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
@@ -310,7 +417,11 @@ class MediaPlaybackService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (instance == this) instance = null
+        floatingPillManager.destroy()
         isServiceRunning = false
+        manageWakeLock(false)
+        wakeLock = null
         mediaSession?.release()
         mediaSession = null
         serviceScope.cancel()
