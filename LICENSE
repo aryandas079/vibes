@@ -1,20 +1,62 @@
-Copyright (c) 2026 Aryan Das
+PROPRIETARY AND CONFIDENTIAL SOURCE CODE LICENSE
+COPYRIGHT (C) 2026 ARYAN DAS. ALL RIGHTS RESERVED.
 
-All Rights Reserved.
+IMPORTANT — CAREFULLY READ THE FOLLOWING LEGAL TERMS AND CONDITIONS:
 
-This software and its source code are the exclusive property of
-Aryan Das.
+This software program, source code, binary distributions, software architecture,
+native C++ libraries, rule definitions, user interface designs, graphics, branding,
+and associated documentation (collectively referred to as the "Software") are the
+exclusive and sole intellectual property of Aryan Das ("Owner" / "Author").
 
-The source code is made publicly available for viewing and
-reference purposes only.
+This repository and Software are provided strictly for viewing, evaluation, and
+portfolio verification purposes. NO LICENSE OR RIGHT OF USE IS GRANTED, EXPRESS OR
+IMPLIED, EXCEPT AS SPECIFICALLY PROVIDED HEREIN.
 
-No permission is granted to copy, reproduce, modify, distribute,
-publish, sublicense, sell, or commercially use this software or
-any portion of it without prior written permission from the
-copyright holder.
+1. ABSOLUTE PROHIBITION OF COPYING AND REPRODUCTION
+No individual, corporation, organization, or entity may copy, reproduce, duplicate,
+replicate, download for replication, mirror, clone, fork, scrape, or extract this
+Software or any portion, file, algorithm, or asset thereof, into any format, storage
+medium, or version control system without express, prior, direct written authorization
+executed by Aryan Das.
 
-Unauthorized use, reproduction, or distribution of this software
-may constitute copyright infringement.
+2. PROHIBITION OF DERIVATIVE WORKS AND MODIFICATIONS
+You are strictly forbidden from modifying, translating, adapting, altering, refactoring,
+or creating derivative software, applications, or browsers based in whole or in part upon
+this Software. Decompilation, disassembly, reverse engineering, or inspection of proprietary
+native binaries (including but not limited to libhaze_native.so) is strictly illegal.
 
-For permissions or licensing inquiries, please contact the
-copyright holder.
+3. PROHIBITION OF INTELLECTUAL PROPERTY AND COPYRIGHT CLAIMS
+Any attempt by any third party to claim, assert, register, patent, or copyright ownership,
+co-authorship, or proprietary rights over this Software, its algorithms, UI/UX designs, or
+any derivative thereof, is strictly unlawful, fraudulent, and null and void ab initio. All legal
+title, copyright, moral rights, and trade secret protections remain permanently and exclusively
+with Aryan Das. Attempting to copyright, rebrand, or register any part of this work is an illegal
+act of intellectual property theft.
+
+4. PROHIBITION OF DISTRIBUTION AND COMMERCIAL EXPLOITATION
+No portion of this Software may be sold, resold, sublicensed, rented, leased, hosted as
+a cloud service, embedded into third-party applications, or distributed across app stores,
+repositories, websites, or digital marketplaces, whether for commercial profit or
+non-commercial dissemination.
+
+5. RESERVATION OF RIGHTS
+All rights not explicitly granted herein are reserved exclusively by Aryan Das.
+
+6. LEGAL ENFORCEMENT, DAMAGES, AND JURISDICTION
+Any unauthorized copying, distribution, modification, or appropriation of this Software
+constitutes willful copyright infringement and misappropriation of intellectual property
+under international copyright conventions (including the Berne Convention for the
+Protection of Literary and Artistic Works, the Universal Copyright Convention, and the
+WIPO Copyright Treaty) and relevant national statutory frameworks.
+
+Any violation shall be prosecuted to the fullest extent of the law, including but not
+limited to immediate civil injunctive relief, statutory damages, compensation for actual
+damages and lost profits, seizure of infringing materials, and liability for all legal
+and attorney costs incurred.
+
+--------------------------------------------------------------------------------
+For official inquiries, formal licensing, or permissions, contact:
+Aryan Das
+GitHub:   https://github.com/aryandas079
+LinkedIn: https://linkedin.com/in/iam-aryandas
+--------------------------------------------------------------------------------
