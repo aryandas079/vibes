@@ -400,7 +400,7 @@ class AmbientMusicRecognizer {
             artist = artist,
             album = "$title - Ambient Identification",
             artworkUrl = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80",
-            previewUrl = "https://cdns-preview-d.dzcdn.net/stream/c-deda7fac944b147b44421e7c53ef954f-14.mp3",
+            previewUrl = null,
             durationMs = 180000L,
             releaseYear = "2024",
             genre = "Acoustic Pop"

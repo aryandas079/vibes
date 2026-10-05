@@ -514,7 +514,7 @@ class HummingSearchService {
             artist = artist,
             album = "$title - Single",
             artworkUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80",
-            previewUrl = "https://cdns-preview-d.dzcdn.net/stream/c-deda7fac944b147b44421e7c53ef954f-14.mp3",
+            previewUrl = null,
             durationMs = 195000,
             releaseYear = "2024",
             genre = "Pop",

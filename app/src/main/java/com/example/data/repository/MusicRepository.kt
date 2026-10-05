@@ -2308,7 +2308,7 @@ class MusicRepository(
                 artist = "Queen",
                 album = "A Night at the Opera",
                 artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/8b/0a/ea/8b0aea60-6f4a-195b-5958-cdf459c2333b/602527644271.jpg/600x600bb.jpg",
-                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/a4/09/a6/a409a6c9-e740-1e5f-1492-dc203da7bf88/mzaf_1135399237022217274.plus.aac.p.m4a",
+                previewUrl = null,
                 durationMs = 354000L,
                 genre = "Rock",
                 releaseYear = "1975",
@@ -2321,7 +2321,7 @@ class MusicRepository(
                 artist = "Imagine Dragons",
                 album = "Evolve",
                 artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/11/7a/b8/117ab805-6811-8929-18b9-0fad7baf0c25/17UMGIM98210.rgb.jpg/600x600bb.jpg",
-                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/11/71/d6/1171d6ad-3c96-e027-2af6-58028426588c/mzaf_15137631797407745471.plus.aac.p.m4a",
+                previewUrl = null,
                 durationMs = 204000L,
                 genre = "Rock",
                 releaseYear = "2017",
@@ -2334,7 +2334,7 @@ class MusicRepository(
                 artist = "Coldplay",
                 album = "Parachutes",
                 artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f5/93/8c/f5938c49-964c-31d1-4b33-78b634f71fb7/190295978075.jpg/600x600bb.jpg",
-                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview115/v4/12/73/ca/1273ca46-233a-5331-189b-25ac1d656533/mzaf_976341070785891411.plus.aac.p.m4a",
+                previewUrl = null,
                 durationMs = 269000L,
                 genre = "Rock",
                 releaseYear = "2000",
@@ -2349,7 +2349,7 @@ class MusicRepository(
                 artist = "Luis Fonsi & Daddy Yankee",
                 album = "VIDA",
                 artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/11/d6/58/11d658ed-2ee0-31bb-da65-3377b879f7fe/00602557543537.rgb.jpg/600x600bb.jpg",
-                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview122/v4/f8/f7/e6/f8f7e68a-b3b6-6923-1413-47063fdf8097/mzaf_1281793130090250096.plus.aac.p.m4a",
+                previewUrl = null,
                 durationMs = 228000L,
                 genre = "Latin",
                 releaseYear = "2017",
@@ -2362,7 +2362,7 @@ class MusicRepository(
                 artist = "Bad Bunny",
                 album = "Un Verano Sin Ti",
                 artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/a3/6b/96/a36b963b-16d3-ba27-a419-01911a1423b2/artwork.jpg/600x600bb.jpg",
-                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview122/v4/f8/f7/e6/f8f7e68a-b3b6-6923-1413-47063fdf8097/mzaf_1281793130090250096.plus.aac.p.m4a",
+                previewUrl = null,
                 durationMs = 243000L,
                 genre = "Latin",
                 releaseYear = "2022",
@@ -2377,7 +2377,7 @@ class MusicRepository(
                 artist = "BTS",
                 album = "BE",
                 artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/2b/f6/82/2bf682ab-f6c5-a82e-d204-306faede272e/198704579318_Cover.jpg/600x600bb.jpg",
-                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/8e/3c/69/8e3c6901-b66e-21ee-cb96-d475685352cf/mzaf_10406859423659220377.plus.aac.p.m4a",
+                previewUrl = null,
                 durationMs = 199000L,
                 genre = "K-Pop",
                 releaseYear = "2020",
@@ -2390,7 +2390,7 @@ class MusicRepository(
                 artist = "NewJeans",
                 album = "Get Up",
                 artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/63/e5/e2/63e5e2e4-829b-924d-a1dc-8058a1d69bd4/196922462702_Cover.jpg/600x600bb.jpg",
-                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/dc/49/a0/dc49a081-64d8-c68e-a226-621516e8812c/mzaf_13337951566412128913.plus.aac.p.m4a",
+                previewUrl = null,
                 durationMs = 154000L,
                 genre = "K-Pop",
                 releaseYear = "2023",
@@ -2405,7 +2405,7 @@ class MusicRepository(
                 artist = "Pritam & Arijit Singh",
                 album = "Brahmastra",
                 artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/9f/13/ca/9f13ca3b-e533-03e0-f19a-f0aaa774581d/196589311191.jpg/600x600bb.jpg",
-                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/44/af/81/44af8168-9609-1b85-5048-ada08dceacf3/mzaf_1341699644335558812.plus.aac.p.m4a",
+                previewUrl = null,
                 durationMs = 268000L,
                 genre = "Bollywood",
                 releaseYear = "2022",
@@ -2418,7 +2418,7 @@ class MusicRepository(
                 artist = "Mithoon & Arijit Singh",
                 album = "Aashiqui 2",
                 artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a3/7a/b4/a37ab449-ade8-d9e1-6b72-eecb2cffd6a2/5063654149698_cover.jpg/600x600bb.jpg",
-                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/44/c7/4f/44c74f0d-72dc-6143-d4d0-ba14d661ca0d/mzaf_9566898362556366703.plus.aac.p.m4a",
+                previewUrl = null,
                 durationMs = 262000L,
                 genre = "Bollywood",
                 releaseYear = "2013",
@@ -2431,7 +2431,7 @@ class MusicRepository(
                 artist = "Sachin-Jigar & Arijit Singh",
                 album = "Bhediya",
                 artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/29/14/de/2914deba-3fac-4a9a-e493-0efd12bf8c69/840214461774.png/600x600bb.jpg",
-                previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/12/73/ca/1273ca46-233a-5331-189b-25ac1d656533/mzaf_976341070785891411.plus.aac.p.m4a",
+                previewUrl = null,
                 durationMs = 261000L,
                 genre = "Bollywood",
                 releaseYear = "2022",
@@ -2636,9 +2636,16 @@ class MusicRepository(
                             songCache[matched.id] = matched
                             matched
                         } else {
-                            catalog.firstOrNull { it.genre.contains(rec.vibe, ignoreCase = true) }
-                                ?: catalog.firstOrNull { it.artist.contains(rec.artist, ignoreCase = true) }
-                                ?: catalog.first()
+                            // Construct a target Song for rec.title and rec.artist instead of catalog.first()
+                            Song(
+                                id = kotlin.math.abs((rec.title + rec.artist).hashCode().toLong()) + 700000L,
+                                title = rec.title,
+                                artist = rec.artist,
+                                album = "${rec.title} - Single",
+                                artworkUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80",
+                                previewUrl = null, // AudioPlayerManager will resolve live when played
+                                genre = rec.vibe
+                            )
                         }
                     }
 
@@ -2689,8 +2696,8 @@ class MusicRepository(
                     title = track.title,
                     artist = track.artist,
                     album = "${track.title} - Single",
-                    artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/b5/92/bb/b592bb72-52e3-e756-9b26-9f56d08f47ab/16UMGIM67864.rgb.jpg/600x600bb.jpg",
-                    previewUrl = "https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/67/10/16/67101606-3869-ca44-6c03-e13d6322cb51/mzaf_1135399237022217274.plus.aac.p.m4a",
+                    artworkUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&auto=format&fit=crop&q=80",
+                    previewUrl = null, // AudioPlayerManager will resolve live when played
                     genre = rawPlaylist.mood
                 )
             }

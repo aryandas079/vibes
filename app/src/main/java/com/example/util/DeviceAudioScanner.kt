@@ -90,7 +90,7 @@ object DeviceAudioScanner {
             artist = "The Weeknd ft. Daft Punk",
             album = "Starboy [Local FLAC]",
             artworkUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/bb/6d/8f/bb6d8f67-6d04-10b5-dd62-eb5809ac54fc/00602567879152.rgb.jpg/600x600bb.jpg",
-            previewUrl = "https://cdns-preview-d.dzcdn.net/stream/c-deda7fac944b147b44421e7c53ef954f-14.mp3",
+            previewUrl = null,
             durationMs = 230000L,
             genre = "Local Offline",
             releaseYear = "Local SD"

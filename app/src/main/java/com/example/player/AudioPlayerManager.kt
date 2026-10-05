@@ -325,27 +325,59 @@ class AudioPlayerManager(private val context: Context) {
         resolveJob = scope.launch(Dispatchers.IO) {
             var resolvedUrl: String? = null
             try {
-                val query = "${song.title} ${song.artist}".trim()
-                // 1. Try iTunes search with country parameter
-                try {
-                    val itunes = com.example.data.remote.NetworkClient.itunesApi.searchSongs(term = query, country = "US", limit = 1)
-                    resolvedUrl = itunes.results.firstOrNull()?.previewUrl
-                } catch (e: Exception) {}
+                val cleanTitle = song.title.replace(Regex("(?i)\\(.*\\)|\\[.*\\]|feat\\..*|ft\\..*"), "").trim()
+                val primaryArtist = song.artist.split("&", ",", "feat.", "ft.", "and", "X", "x").firstOrNull()?.trim() ?: song.artist
+
+                val searchQueries = listOf(
+                    "$cleanTitle $primaryArtist",
+                    "$cleanTitle ${song.artist}",
+                    cleanTitle
+                ).distinct()
+
+                // 1. Try iTunes search across countries (IN for Indian/Bollywood, US for western, etc.)
+                for (q in searchQueries) {
+                    if (!resolvedUrl.isNullOrBlank()) break
+                    for (country in listOf("IN", "US", "GB")) {
+                        if (!resolvedUrl.isNullOrBlank()) break
+                        try {
+                            val itunes = com.example.data.remote.NetworkClient.itunesApi.searchSongs(term = q, country = country, limit = 5)
+                            val match = itunes.results.firstOrNull { item ->
+                                val itemTitle = item.trackName ?: ""
+                                itemTitle.contains(cleanTitle, ignoreCase = true) || cleanTitle.contains(itemTitle, ignoreCase = true)
+                            } ?: itunes.results.firstOrNull()
+                            resolvedUrl = match?.previewUrl
+                        } catch (e: Exception) {}
+                    }
+                }
 
                 // 2. Try Deezer track search
                 if (resolvedUrl.isNullOrBlank()) {
-                    try {
-                        val deezer = com.example.data.remote.NetworkClient.deezerApi.searchTracks(query, limit = 1)
-                        resolvedUrl = deezer.data.firstOrNull()?.preview
-                    } catch (e: Exception) {}
+                    for (q in searchQueries) {
+                        if (!resolvedUrl.isNullOrBlank()) break
+                        try {
+                            val deezer = com.example.data.remote.NetworkClient.deezerApi.searchTracks(q, limit = 5)
+                            val match = deezer.data.firstOrNull { item ->
+                                val itemTitle = item.title ?: ""
+                                itemTitle.contains(cleanTitle, ignoreCase = true) || cleanTitle.contains(itemTitle, ignoreCase = true)
+                            } ?: deezer.data.firstOrNull()
+                            resolvedUrl = match?.preview
+                        } catch (e: Exception) {}
+                    }
                 }
             } catch (e: Exception) {}
 
             withContext(Dispatchers.Main) {
                 // Ensure this song is still the active choice
                 if (_currentSong.value?.id == song.id) {
-                    val finalUrl = if (!resolvedUrl.isNullOrBlank()) resolvedUrl else "https://cdns-preview-d.dzcdn.net/stream/c-deda7fac944b147b44421e7c53ef954f-14.mp3"
-                    playUrl(finalUrl, song, retryWithItunes = false)
+                    if (!resolvedUrl.isNullOrBlank()) {
+                        playUrl(resolvedUrl, song, retryWithItunes = false)
+                    } else {
+                        // Stop buffering gracefully if no preview URL is available
+                        _isBuffering.value = false
+                        _durationMs.value = song.durationMs.coerceAtLeast(30000L)
+                        _isPlaying.value = false
+                        stopProgressTicker()
+                    }
                 }
             }
         }
