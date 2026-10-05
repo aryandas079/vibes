@@ -221,4 +221,14 @@ app/src/main/java/com/example/
 >
 > * **Audio Snippets & Artwork:** All 30-second audio previews, album covers, artist portraits, and song titles remain the sole intellectual property of their respective record labels, publishers, and artists. Audio previews are fetched dynamically via public demonstration endpoints of iTunes and Deezer.
 > * **Lyrics:** Lyrics data is retrieved via LRCLIB and Lyrics.ovh for educational display. All rights belong to the original songwriters and music publishing entities.
-> * **Trademarks:** Spotify, Apple Music, Deezer, YouTube Music, Amazon Music, TIDAL, and SoundCloud are registered trademarks of their respective corporations. Their inclusion is purely for intent-based deep linking and attribution.
+> * **Trademarks:** Spotify, Apple Music, Deezer, YouTube Music, Amazon Music, TIDAL, and SoundCloud are registered trademarks of their respective corporations. Their inclusion is purely for intent-based deep linking and attribution. 
+
+## Copyright
+
+Copyright © 2026 Aryan Das. All Rights Reserved.
+
+This project is publicly available for viewing and reference purposes only.
+Copying, modification, redistribution, republication, or commercial use
+of the source code is not permitted without prior written permission.
+
+For permission to use this project, please contact the author.
